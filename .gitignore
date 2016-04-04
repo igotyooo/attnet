@@ -1,0 +1,7 @@
+# Output data.
+datain/
+dataout/
+*.out
+
+# Backup files.
+*.m~

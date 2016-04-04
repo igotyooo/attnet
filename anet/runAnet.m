@@ -1,0 +1,28 @@
+%% SET PARAMETERS ONLY.
+clc; close all; fclose all; clear all; 
+addpath( genpath( '..' ) ); init;
+setting.db = path.db.voc2007;
+setting.prenet = path.net.vgg16;
+setting.anetdb.patchSide = 224;
+setting.anetdb.stride = 32;
+setting.anetdb.numScaling = 24;
+setting.anetdb.dilate = 1 / 4;
+setting.anetdb.normalizeImageMaxSide = 500;
+setting.anetdb.maximumImageSize = 9e6;
+setting.anetdb.posGotoMargin = 2.4;
+setting.anetdb.numQuantizeBetweenStopAndGoto = 3;
+setting.anetdb.negIntOverObjLessThan = 0.1;
+setting.train.gpus = 1 : 4;
+setting.train.numCpu = 12;
+setting.train.numSamplePerObj = [ 1; 14; 1; 16; ];
+setting.train.shuffleSequance = false;
+setting.train.suppLearnRate = 0.1;
+setting.train.learnRate = [ 0.01 * ones( 1, 10 ), 0.001 * ones( 1, 3 ), 0.0001 * ones( 1, 2 ) ];
+setting.train.batchSize = numel( setting.train.gpus ) * 24;
+db = Db( setting.db, path.dstDir );
+db.genDb;
+adb = AnetDb( db, setting.anetdb );
+adb.init;
+adb = adb.makeAnetDb;
+anet = AnetTrain( db, adb, setting.prenet, setting.train );
+anet.train;
