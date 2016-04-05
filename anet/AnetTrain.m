@@ -140,7 +140,7 @@ classdef AnetTrain < handle
             anet.layers{ lastconv }.weights{ 1 } = lastwei{ 1 }( :, :, :, 1 : numOutDim );
             anet.layers{ lastconv }.weights{ 2 } = lastwei{ 2 }( 1 : numOutDim );
             if ~useDropout, anet.layers = ...
-                    anet.layers( ~cellfun( @( ltype )strcmp( ltype, 'dropout' ), anet.layers ) ); end;
+                    anet.layers( ~cellfun( @( l )strcmp( l.type, 'dropout' ), anet.layers ) ); end;
             % Initialize the output layer.
             anet.layers{ end }.type = 'custom';
             anet.layers{ end }.dimDir = 1 : numDimDir;
