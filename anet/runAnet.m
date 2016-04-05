@@ -16,6 +16,7 @@ setting.train.gpus = 1 : 4;
 setting.train.numCpu = 12;
 setting.train.numSamplePerObj = [ 1; 14; 1; 16; ];
 setting.train.shuffleSequance = false;
+setting.train.useDropout = true;
 setting.train.suppLearnRate = 0.1;
 setting.train.learnRate = [ 0.01 * ones( 1, 10 ), 0.001 * ones( 1, 3 ), 0.0001 * ones( 1, 2 ) ];
 setting.train.batchSize = numel( setting.train.gpus ) * 24;

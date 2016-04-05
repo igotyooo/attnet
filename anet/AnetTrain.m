@@ -17,6 +17,7 @@ classdef AnetTrain < handle
             this.numCpu = setting.numCpu;
             this.setting.numSamplePerObj = [ 1; 2; 1; 4; ];
             this.setting.shuffleSequance = false;
+            this.setting.useDropout = true;
             this.setting.suppLearnRate = 0.1;
             this.setting.learnRate = logspace( -2, -4, 10 );
             this.setting.batchSize = 32;
@@ -98,6 +99,7 @@ classdef AnetTrain < handle
         function anet = makeAnet( this )
             % Set params.
             suppLearnRate = this.setting.suppLearnRate;
+            useDropout = this.setting.useDropout;
             name = upper( this.prenet.name );
             numDimPerDirLyr = 4;
             numClass = numel( this.db.cid2name );
@@ -137,6 +139,8 @@ classdef AnetTrain < handle
             end;
             anet.layers{ lastconv }.weights{ 1 } = lastwei{ 1 }( :, :, :, 1 : numOutDim );
             anet.layers{ lastconv }.weights{ 2 } = lastwei{ 2 }( 1 : numOutDim );
+            if ~useDropout, anet.layers = ...
+                    anet.layers( ~cellfun( @( ltype )strcmp( ltype, 'dropout' ), anet.layers ) ); end;
             % Initialize the output layer.
             anet.layers{ end }.type = 'custom';
             anet.layers{ end }.dimDir = 1 : numDimDir;
