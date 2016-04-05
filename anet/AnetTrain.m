@@ -183,6 +183,11 @@ classdef AnetTrain < handle
             rgbVar = meta.augmentation.rgbVariance;
             interpolation = meta.normalization.interpolation;
             inside = imageSize( 1 );
+            if isempty( batch ),
+                ims = zeros( inside, inside, 3, 0, 'single' );
+                labels = zeros( 1, 1, size( this.seq.sid2gt, 3 ), 0, 'single' );
+                return;
+            end;
             if ~isempty( rgbVar ) && isempty( rgbMean ),
                 rgbMean = zeros( 1, 1, 3 );
             end;
@@ -201,8 +206,8 @@ classdef AnetTrain < handle
             prefetch = fetch & nargout == 0;
             if prefetch,
                 vl_imreadjpeg( idx2impath, 'numThreads', numThreads, 'prefetch' );
-                ims = [  ];
-                labels = [  ];
+                ims = zeros( inside, inside, 3, 0, 'single' );
+                labels = zeros( 1, 1, size( this.seq.sid2gt, 3 ), 0, 'single' );
                 return;
             end;
             if fetch,
@@ -229,14 +234,6 @@ classdef AnetTrain < handle
             ims = sid2im;
             labels = reshape( sid2gt, [ 1, 1, size( sid2gt, 1 ), numSmpl ] );
             this.seq.sid2used( batch ) = true;
-            % for i = 1 : size( sid2im, 4 ),
-            %     imshow( uint8( bsxfun( @plus, sid2im( :, :, :, i ), rgbMean ) ) );
-            %     l = labels( :, :, :, i );
-            %     l = l( : );
-            %     l = l( l ~= 0 );
-            %     title( mat2str( l ) );
-            %     waitforbuttonpress;
-            % end;
         end
         function makeSeq( this )
             fprintf( '%s: Make train seq.\n', upper( mfilename ) );
