@@ -16,11 +16,10 @@ function setting = setChanges( setting, usersetting, processName )
                         uservalstr( uservalstr == '.' ) = 'P';
                     end
                     if issame( upper( val ), upper( userval ) )
-                        fprintf( '%s: Already default: %s = %s\n', processName, usernames{ unidx }, uservalstr );
+                        fprintf( '%s: (default) %s = %s\n', processName, usernames{ unidx }, uservalstr );
                     else
                         setting.( usernames{ unidx } ) = userval;
-                        fprintf( '%s: Set to %s = %s\n', processName, usernames{ unidx }, uservalstr );
-                        
+                        fprintf( '%s: (changed) %s = %s\n', processName, usernames{ unidx }, uservalstr );
                         pname = usernames{ unidx };
                         pname = strcat( pname( 1 ), pname( isstrprop( pname, 'upper' ) ) );
                         changes = cat( 2, changes, '_', upper( pname ), upper( uservalstr ) );
