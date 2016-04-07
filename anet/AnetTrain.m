@@ -64,11 +64,12 @@ classdef AnetTrain < handle
                 anet.meta.directions = this.anetdb.directions;
                 anet.meta.directions.dimDir = anet.layers{ end }.dimDir;
                 anet.meta.directions.dimCls = anet.layers{ end }.dimCls;
+                anet.meta.name = this.getNetName;
                 anet = cnn_imagenet_deploy( anet );
                 anet.layers = anet.layers( 1 : end - 2 );
                 for l = 1 : numel( anet.layers ),
                     if isfield( anet.layers{ l }, 'opts' ), ...
-                            anet.layers{ l } = rmfield( anet.layers{ l }, 'opts' ); end;
+                            anet.layers{ l }.opts = {  }; end;
                 end;
                 save( anetPath, '-struct', 'anet' );
                 save( infoPath, '-struct', 'info' );
