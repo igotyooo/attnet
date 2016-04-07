@@ -24,39 +24,56 @@ classdef AnetTrain < handle
             this.setting = setChanges...
                 ( this.setting, setting, upper( mfilename ) );
         end
-        function [ net, info ] = train( this )
-            % Form anet.
-            net = this.makeAnet;
-            % Make initial seq.
-            this.makeSeq;
-            % Compute patch statistics.
-            path = this.getPatchStatPath;
+        function [ anet, info ] = train( this )
+            anetPath = fullfile( this.getNetDir, 'net-deployed.mat' );
+            infoPath = fullfile( this.getNetDir, 'info.mat' );
             try
-                data = load( path );
-                rgbMean = data.rgbMean;
-                rgbCovariance = data.rgbCovariance;
+                anet = load( anetPath );
+                info = load( infoPath );
             catch
-                [ rgbMean, rgbCovariance ] = this.getImageStats( net.meta );
-                save( path, 'rgbMean', 'rgbCovariance' );
+                % Form anet.
+                anet = this.makeAnet;
+                % Make initial seq.
+                this.makeSeq;
+                % Compute patch statistics.
+                path = this.getPatchStatPath;
+                try
+                    data = load( path );
+                    rgbMean = data.rgbMean;
+                    rgbCovariance = data.rgbCovariance;
+                catch
+                    [ rgbMean, rgbCovariance ] = this.getImageStats( anet.meta );
+                    save( path, 'rgbMean', 'rgbCovariance' );
+                end;
+                anet.meta.normalization.averageImage = rgbMean;
+                [ v, d ] = eig( rgbCovariance );
+                anet.meta.augmentation.rgbVariance = 0.1 * sqrt( d ) * v';
+                % Learn.
+                opts.train.gpus = this.gpus;
+                opts.train.prefetch = true;
+                opts.train.errorFunction = @this.errorFun;
+                opts.train.errorLabels = { 'err-cls', 'err-dir' };
+                [ anet, info ] = my_cnn_train( ...
+                    anet, this.seq, ...
+                    @( x, y )this.getBatch( anet.meta, x, y ), ...
+                    'expDir', this.getNetDir, ...
+                    anet.meta.trainOpts, ...
+                    opts.train );
+                % Deploy.
+                fprintf( '%s: Save anet.\n', upper( mfilename ) );
+                anet.meta.directions = this.anetdb.directions;
+                anet.meta.directions.dimDir = anet.layers{ end }.dimDir;
+                anet.meta.directions.dimCls = anet.layers{ end }.dimCls;
+                anet = cnn_imagenet_deploy( anet );
+                anet.layers = anet.layers( 1 : end - 2 );
+                for l = 1 : numel( anet.layers ),
+                    if isfield( anet.layers{ l }, 'opts' ), ...
+                            anet.layers{ l } = rmfield( anet.layers{ l }, 'opts' ); end;
+                end;
+                save( anetPath, '-struct', 'anet' );
+                save( infoPath, '-struct', 'info' );
+                fprintf( '%s: Done.\n', upper( mfilename ) );
             end;
-            net.meta.normalization.averageImage = rgbMean;
-            [ v, d ] = eig( rgbCovariance );
-            net.meta.augmentation.rgbVariance = 0.1 * sqrt( d ) * v';
-            % Learn.
-            opts.train.gpus = this.gpus;
-            opts.train.prefetch = true;
-            opts.train.errorFunction = @this.errorFun;
-            opts.train.errorLabels = { 'err-cls', 'err-dir' };
-            [ net, info ] = my_cnn_train( ...
-                net, this.seq, ...
-                @( x, y )this.getBatch( net.meta, x, y ), ...
-                'expDir', this.getNetDir, ...
-                net.meta.trainOpts, ...
-                opts.train );
-            % Deploy.
-            net = cnn_imagenet_deploy( net ); % <- To be edited.
-            modelPath = fullfile( dstdir, 'net-deployed.mat' );
-            save( modelPath, '-struct', 'net' );
         end
     end
     %%%%%%%%%%%%%%%%%%%%%%
