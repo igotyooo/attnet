@@ -1,13 +1,8 @@
-classdef ANet < handle
+classdef Anet < handle
     properties
         db;
-        attNet;
-        attNetName;
-        patchSide;
-        inputSide;
-        stride;
+        anet;
         scales;
-        directions;
         settingProp;
         settingDet0;
         settingMrg0;
@@ -15,10 +10,10 @@ classdef ANet < handle
         settingMrg1;
     end
     methods( Access = public )
-        function this = ANet...
-                ( db, attNet, settingProp, settingDet0, settingMrg0, settingDet1, settingMrg1 )
+        function this = Anet...
+                ( db, anet, settingProp, settingDet0, settingMrg0, settingDet1, settingMrg1 )
             this.db                                   = db;
-            this.attNet                               = attNet;
+            this.anet                                 = anet;
             this.settingProp.flip                     = false;
             this.settingProp.numScaling               = 12;
             this.settingProp.dilate                   = 1 / 4;
@@ -68,27 +63,8 @@ classdef ANet < handle
                 ( this.settingMrg1, settingMrg1, upper( mfilename ) );
         end
         function init( this, gpus )
-            % Determine patch stride and side.
-            fprintf( '%s: Determine stride and patch side.\n', ...
-                upper( mfilename ) );
-            [ this.patchSide, this.stride ] = ...
-                getNetProperties( this.attNet, numel( this.attNet.layers ) - 1 );
-            this.inputSide = this.patchSide;
-            fprintf( '%s: Done.\n', upper( mfilename ) );
-            % Fetch net on GPU.
-            fprintf( '%s: Fetch att net on GPU.\n', upper( mfilename ) );
-            this.attNet = Net.fetchNetOnGpu( this.attNet, gpus );
-            fprintf( '%s: Done.\n', upper( mfilename ) );
-            % Define directions.
-            fprintf( '%s: Define directions.\n', upper( mfilename ) );
-            numDirection = 3;
-            angstep = ( pi / 2 ) / ( numDirection - 1 );
-            did2angTl = ( 0 : angstep : ( pi / 2 ) )';
-            did2angBr = ( pi : angstep : ( pi * 3 / 2 ) )';
-            this.directions.did2vecTl = [ [ cos( did2angTl' ); sin( did2angTl' ); ], [ 0; 0; ] ];
-            this.directions.did2vecBr = [ [ cos( did2angBr' ); sin( did2angBr' ); ], [ 0; 0; ] ];
-            fprintf( '%s: Done.\n', upper( mfilename ) );
             % Determine scaling factors.
+            patchSide = this.anet.meta.map.patchSide;
             fpath = this.getScaleFactorPath;
             try
                 fprintf( '%s: Try to load scaling factors.\n', upper( mfilename ) );
@@ -112,13 +88,21 @@ classdef ANet < handle
                             ( maxSide, oid2imsize( :, oid ), oid2tlbr( :, oid ) );
                     end;
                 end;
-                referenceSide = this.patchSide * sqrt( posIntOverRegnMoreThan );
+                referenceSide = patchSide * sqrt( posIntOverRegnMoreThan );
                 [ scalesRow, scalesCol ] = determineImageScaling...
                     ( oid2tlbr, numScaling, referenceSide, true );
                 data.scales = [ scalesRow, scalesCol ]';
                 save( fpath, 'data' );
                 this.scales = data.scales;
             end;
+            fprintf( '%s: Done.\n', upper( mfilename ) );
+            % Make output layer.
+            
+            % Fetch net on GPU.
+            fprintf( '%s: Fetch anet on GPU.\n', upper( mfilename ) );
+            gpu = gpus( 1 );
+            gpuDevice( gpu );
+            this.anet = vl_simplenn_move( this.anet, 'gpu') ;
             fprintf( '%s: Done.\n', upper( mfilename ) );
         end
         function [ rid2tlbr, nid2rid, nid2cid ] = iid2prop( this, iid )
@@ -386,6 +370,7 @@ classdef ANet < handle
             if flip, im = fliplr( im ); end;
             [ rid2out, rid2tlbr ] = this.initGuess( im, cidx2cid );
             % Compute each region score.
+            patchSide = this.anet.meta.map.patchSide;
             minNumDetPerCls = this.settingProp.minNumDetectionPerClass;
             dvecSize = this.settingProp.directionVectorSize;
             numTopCls = this.settingProp.numTopClassification;
@@ -444,13 +429,13 @@ classdef ANet < handle
                 idx2ptl = rid2ptl( rid2cont );
                 idx2pbr = rid2pbr( rid2cont );
                 idx2tlbrWarp = [ ...
-                    this.directions.did2vecTl( :, idx2ptl ) * dvecSize + 1; ...
-                    this.directions.did2vecBr( :, idx2pbr ) * dvecSize + this.patchSide; ];
+                    this.anet.meta.directions.did2vecTl( :, idx2ptl ) * dvecSize + 1; ...
+                    this.anet.meta.directions.did2vecBr( :, idx2pbr ) * dvecSize + patchSide; ];
                 for idx = 1 : numCont,
                     w = idx2tlbr( 4, idx ) - idx2tlbr( 2, idx ) + 1;
                     h = idx2tlbr( 3, idx ) - idx2tlbr( 1, idx ) + 1;
                     tlbrWarp = idx2tlbrWarp( :, idx );
-                    tlbr = resizeTlbr( tlbrWarp, [ this.patchSide, this.patchSide ], [ h, w ] );
+                    tlbr = resizeTlbr( tlbrWarp, [ patchSide, patchSide ], [ h, w ] );
                     idx2tlbr( :, idx ) = tlbr - 1 + ...
                         [ idx2tlbr( 1 : 2, idx ); idx2tlbr( 1 : 2, idx ) ];
                 end;
@@ -508,17 +493,16 @@ classdef ANet < handle
             rescaleBox = detParams.rescaleBox;
             rid2tlbr0 = scaleBoxes( rid2tlbr0, sqrt( rescaleBox ), sqrt( rescaleBox ) );
             rid2tlbr0 = round( rid2tlbr0 );
-            rgbMean = this.attNet.normalization.averageImage;
+            rgbMean = reshape( this.anet.meta.normalization.averageImage, [ 1, 1, 3 ] );
             % Do detection on each region.
             flip = this.settingProp.flip;
-            interpolation = 'bilinear';
             imTl = min( rid2tlbr0( 1 : 2, : ), [  ], 2 );
             imBr = max( rid2tlbr0( 3 : 4, : ), [  ], 2 );
             rid2tlbr0( 1 : 4, : ) = bsxfun( @minus, rid2tlbr0( 1 : 4, : ), [ imTl; imTl; ] ) + 1;
             im = imread( this.db.iid2impath{ iid } );
             if flip, im = fliplr( im ); end;
             imGlobal = normalizeAndCropImage...
-                ( single( im ), [ imTl; imBr ], rgbMean, interpolation );
+                ( single( im ), [ imTl; imBr ], rgbMean );
             switch detType,
                 case 'STATIC',
                     if nargout < 4
@@ -552,6 +536,7 @@ classdef ANet < handle
             end;
         end
         function [ rid2out, rid2tlbr ] = initGuess( this, im, cidx2cid )
+            patchSide = this.anet.meta.map.patchSide;
             dilate = this.settingProp.dilate;
             maxSide = this.settingProp.normalizeImageMaxSide;
             maximumImageSize = this.settingProp.maximumImageSize;
@@ -560,7 +545,7 @@ classdef ANet < handle
             if maxSide, imSize = normalizeImageSize( maxSide, imSize0 ); else imSize = imSize0; end;
             sid2size = round( bsxfun( @times, this.scales, imSize ) );
             rid2tlbr = extractDenseRegions...
-                ( imSize, sid2size, this.patchSide, this.stride, dilate, maximumImageSize );
+                ( imSize, sid2size, patchSide, this.anet.meta.map.stride, dilate, maximumImageSize );
             rid2tlbr = round( resizeTlbr( rid2tlbr, imSize, imSize0 ) );
             rid2out = this.extractDenseActivations( im, cidx2cid, sid2size );
             if size( rid2out, 2 ) ~= size( rid2tlbr, 2 ),
@@ -568,16 +553,17 @@ classdef ANet < handle
         end
         function rid2out = extractDenseActivations...
                 ( this, originalImage, cidx2cid, targetImageSizes )
+            patchSide = this.anet.meta.map.patchSide;
             regionDilate = this.settingProp.dilate;
             maximumImageSize = this.settingProp.maximumImageSize;
-            imageDilate = round( this.patchSide * regionDilate );
-            rgbMean = this.attNet.normalization.averageImage;
-            interpolation = this.attNet.normalization.interpolation;
+            imageDilate = round( patchSide * regionDilate );
+            rgbMean = reshape( this.anet.meta.normalization.averageImage, [ 1, 1, 3 ] );
+            interpolation = this.anet.meta.normalization.interpolation;
             numSize = size( targetImageSizes, 2 );
             rid2out = cell( numSize, 1 );
             for sid = 1 : numSize,
                 imSize = targetImageSizes( :, sid );
-                if min( imSize ) + 2 * imageDilate < this.patchSide, continue; end;
+                if min( imSize ) + 2 * imageDilate < patchSide, continue; end;
                 if prod( imSize + imageDilate * 2 ) > maximumImageSize,
                     fprintf( '%s: Warning) Im of %s rejected.\n', ...
                         upper( mfilename ), mat2str( imSize ) ); continue;
@@ -590,7 +576,7 @@ classdef ANet < handle
                     1 - imageDilate; ...
                     1 - imageDilate; ...
                     imSize( : ) + imageDilate; ];
-                im = normalizeAndCropImage( im, roi, rgbMean, interpolation );
+                im = normalizeAndCropImage( im, roi, rgbMean );
                 fprintf( '%s: Feed im of %dX%d size.\n', ...
                     upper( mfilename ), size( im, 1 ), size( im, 2 ) );
                 y = this.feedforward( im, cidx2cid );
@@ -606,18 +592,18 @@ classdef ANet < handle
             targetDimDir = bsxfun( @plus, repmat( ( cidx2cid' - 1 ) * 4 * 2, 4 * 2, 1 ), ( 1 : ( 4 * 2 ) )' );
             targetDimCls = [ cidx2cid; numCls + 1; ] + 4 * 2 * numCls;
             targetDim = [ targetDimDir( : ); targetDimCls; ];
-            weight = this.attNet.layers{ end - 1 }.weights{ 1 }( :, :, :, targetDim );
-            bias = this.attNet.layers{ end - 1 }.weights{ 2 }( :, targetDim );
+            convs = cellfun( @( l )strcmp( l.type, 'conv' ), this.anet.layers );
+            convs = find( convs );
+            target = convs( end );
+            weight = this.anet.layers{ target }.weights{ 1 }( :, :, :, targetDim );
+            bias = this.anet.layers{ target }.weights{ 2 }( targetDim );
+            tmp.layers = this.anet.layers( 1 : target - 1 );
             im = gpuArray( im );
-            targetLayer = numel( this.attNet.layers ) - 2;
-            res = my_simplenn( ...
-                this.attNet, im, [  ], [  ], ...
+            res = vl_simplenn( tmp, im, [  ], [  ], ...
                 'accumulate', false, ...
-                'disableDropout', true, ...
-                'conserveMemory', true, ...
-                'backPropDepth', +inf, ...
-                'targetLayerId', targetLayer );
-            x = res( targetLayer + 1 ).x; clear res; clear im;
+                'mode', 'test', ...
+                'conserveMemory', true );
+            x = res( target ).x; clear res im tmp;
             y = vl_nnconv( x, weight, bias, 'pad', 0, 'stride', 1 ); clear x;
             % Softmax.
             % dims = 1 : ( 4 * 2 * numel( cidx2cid ) );
@@ -630,6 +616,7 @@ classdef ANet < handle
         function [ did2tlbr, did2score, did2cid, fid2boxes ] = dynamicFitting...
                 ( this, rid2tlbr, nid2rid, nid2cid, im, detParams )
             % Preparing for data.
+            inputSide = this.anet.meta.inputSize( 1 );
             numTopCls = detParams.numTopClassification;
             numTopDir = detParams.numTopDirection;
             dvecSize = detParams.directionVectorSize;
@@ -670,12 +657,12 @@ classdef ANet < handle
                     rids = r : min( r + testBatchSize - 1, numRegn );
                     bsize = numel( rids );
                     brid2tlbr = rid2tlbr( :, rids );
-                    brid2im = zeros( this.inputSide, this.inputSide, inputCh, bsize, 'single' );
+                    brid2im = zeros( inputSide, inputSide, inputCh, bsize, 'single' );
                     for brid = 1 : bsize,
                         roi = brid2tlbr( :, brid );
                         imRegn = im( roi( 1 ) : roi( 3 ), roi( 2 ) : roi( 4 ), : );
                         brid2im( :, :, :, brid ) = imresize...
-                            ( imRegn, [ this.inputSide, this.inputSide ], 'method', interpolation );
+                            ( imRegn, [ inputSide, inputSide ], 'method', interpolation );
                     end;
                     brid2out = this.feedforward( brid2im, cidx2cid );
                     brid2out = permute( brid2out, [ 3, 4, 1, 2 ] );
@@ -738,13 +725,13 @@ classdef ANet < handle
                     idx2ptl = rid2ptl( rid2cont );
                     idx2pbr = rid2pbr( rid2cont );
                     idx2tlbrWarp = [ ...
-                        this.directions.did2vecTl( :, idx2ptl ) * dvecSize + 1; ...
-                        this.directions.did2vecBr( :, idx2pbr ) * dvecSize + this.inputSide; ];
+                        this.anet.meta.directions.did2vecTl( :, idx2ptl ) * dvecSize + 1; ...
+                        this.anet.meta.directions.did2vecBr( :, idx2pbr ) * dvecSize + inputSide; ];
                     for idx = 1 : numCont,
                         w = idx2tlbr( 4, idx ) - idx2tlbr( 2, idx ) + 1;
                         h = idx2tlbr( 3, idx ) - idx2tlbr( 1, idx ) + 1;
                         tlbrWarp = idx2tlbrWarp( :, idx );
-                        tlbr = resizeTlbr( tlbrWarp, [ this.inputSide, this.inputSide ], [ h, w ] );
+                        tlbr = resizeTlbr( tlbrWarp, [ inputSide, inputSide ], [ h, w ] );
                         idx2tlbr( :, idx ) = tlbr - 1 + ...
                             [ idx2tlbr( 1 : 2, idx ); idx2tlbr( 1 : 2, idx ) ];
                     end;
@@ -769,6 +756,7 @@ classdef ANet < handle
         function [ did2tlbr, did2score, did2cid, fid2boxes ] = staticFitting...
                 ( this, rid2tlbr, nid2rid, nid2cid, im, detParams )
             % Preparing for data.
+            inputSide = this.anet.meta.inputSize( 1 );
             onlyTarAndBgd = detParams.onlyTargetAndBackground;
             dvecSize = detParams.directionVectorSize;
             minNumDetPerCls = detParams.minNumDetectionPerClass;
@@ -809,12 +797,12 @@ classdef ANet < handle
                     rids = r : min( r + testBatchSize - 1, numRegn );
                     bsize = numel( rids );
                     brid2tlbr = rid2tlbr( :, rids );
-                    brid2im = zeros( this.inputSide, this.inputSide, inputCh, bsize, 'single' );
+                    brid2im = zeros( inputSide, inputSide, inputCh, bsize, 'single' );
                     for brid = 1 : bsize,
                         roi = brid2tlbr( :, brid );
                         imRegn = im( roi( 1 ) : roi( 3 ), roi( 2 ) : roi( 4 ), : );
                         brid2im( :, :, :, brid ) = imresize...
-                            ( imRegn, [ this.inputSide, this.inputSide ], 'method', interpolation );
+                            ( imRegn, [ inputSide, inputSide ], 'method', interpolation );
                     end;
                     brid2out = this.feedforward( brid2im, cidx2cid );
                     brid2out = permute( brid2out, [ 3, 4, 1, 2 ] );
@@ -882,13 +870,13 @@ classdef ANet < handle
                     idx2ptl = crid2ptl( crid2cont );
                     idx2pbr = crid2pbr( crid2cont );
                     idx2tlbrWarp = [ ...
-                        this.directions.did2vecTl( :, idx2ptl ) * dvecSize + 1; ...
-                        this.directions.did2vecBr( :, idx2pbr ) * dvecSize + this.inputSide; ];
+                        this.anet.meta.directions.did2vecTl( :, idx2ptl ) * dvecSize + 1; ...
+                        this.anet.meta.directions.did2vecBr( :, idx2pbr ) * dvecSize + inputSide; ];
                     for idx = 1 : numCont,
                         w = idx2tlbr( 4, idx ) - idx2tlbr( 2, idx ) + 1;
                         h = idx2tlbr( 3, idx ) - idx2tlbr( 1, idx ) + 1;
                         tlbrWarp = idx2tlbrWarp( :, idx );
-                        tlbr = resizeTlbr( tlbrWarp, [ this.inputSide, this.inputSide ], [ h, w ] );
+                        tlbr = resizeTlbr( tlbrWarp, [ inputSide, inputSide ], [ h, w ] );
                         idx2tlbr( :, idx ) = tlbr - 1 + ...
                             [ idx2tlbr( 1 : 2, idx ); idx2tlbr( 1 : 2, idx ) ];
                     end;
@@ -967,8 +955,8 @@ classdef ANet < handle
         end
         % 2. Proposal file.
         function name = getPropName( this )
-            name = sprintf( 'ANET_PROP_%s_OF_%s', ...
-                this.settingProp.changes, this.attNetName );
+            name = sprintf( 'PROP_%s_OF_%s', ...
+                this.settingProp.changes, this.anet.meta.name );
             name( strfind( name, '__' ) ) = '';
             if name( end ) == '_', name( end ) = ''; end;
         end
@@ -977,7 +965,7 @@ classdef ANet < handle
             if length( name ) > 150,
                 name = sum( ( name - 0 ) .* ( 1 : numel( name ) ) );
                 name = sprintf( '%010d', name );
-                name = strcat( 'ANET_PROP_', name );
+                name = strcat( 'PROP_', name );
             end
             dir = fullfile( this.db.dstDir, name );
         end
@@ -991,7 +979,7 @@ classdef ANet < handle
         end
         % 3. Detection0 file.
         function name = getDet0Name( this )
-            name = sprintf( 'ANET_DET0_%s_OF_%s', ...
+            name = sprintf( 'DET0_%s_OF_%s', ...
                 this.settingDet0.changes, this.getPropName );
             name( strfind( name, '__' ) ) = '';
             if name( end ) == '_', name( end ) = ''; end;
@@ -1001,7 +989,7 @@ classdef ANet < handle
             if length( name ) > 150,
                 name = sum( ( name - 0 ) .* ( 1 : numel( name ) ) );
                 name = sprintf( '%010d', name );
-                name = strcat( 'ANET_DET0_', name );
+                name = strcat( 'DET0_', name );
             end
             dir = fullfile( this.db.dstDir, name );
         end
@@ -1015,7 +1003,7 @@ classdef ANet < handle
         end
         % 4. Detection1 file.
         function name = getDet1Name( this )
-            name = sprintf( 'ANET_DET1_%s_OF_%s_OF_%s', ...
+            name = sprintf( 'DET1_%s_OF_%s_OF_%s', ...
                 this.settingDet1.changes, this.settingMrg0.changes, this.getDet0Name );
             name( strfind( name, '__' ) ) = '';
             if name( end ) == '_', name( end ) = ''; end;
@@ -1025,7 +1013,7 @@ classdef ANet < handle
             if length( name ) > 150,
                 name = sum( ( name - 0 ) .* ( 1 : numel( name ) ) );
                 name = sprintf( '%010d', name );
-                name = strcat( 'ANET_DET1_', name );
+                name = strcat( 'DET1_', name );
             end
             dir = fullfile( this.db.dstDir, name );
         end
