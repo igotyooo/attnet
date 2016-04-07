@@ -96,8 +96,6 @@ classdef Anet < handle
                 this.scales = data.scales;
             end;
             fprintf( '%s: Done.\n', upper( mfilename ) );
-            % Make output layer.
-            
             % Fetch net on GPU.
             fprintf( '%s: Fetch anet on GPU.\n', upper( mfilename ) );
             gpu = gpus( 1 );
