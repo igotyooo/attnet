@@ -25,6 +25,7 @@ classdef Anet < handle
             this.settingProp.onlyTargetAndBackground  = false;
             this.settingProp.directionVectorSize      = 30;
             this.settingProp.minNumDetectionPerClass  = 0;
+            this.settingDet0.batchSize                = settingDet0.batchSize;
             this.settingDet0.type                     = 'DYNAMIC';
             this.settingDet0.rescaleBox               = 1;
             this.settingDet0.numTopClassification     = 1;          % Ignored if 'STATIC'.
@@ -38,6 +39,7 @@ classdef Anet < handle
             this.settingMrg0.mergingMethod            = 'WAVG';
             this.settingMrg0.minimumNumSupportBox     = 1;          % Ignored if mergingOverlap = 1.
             this.settingMrg0.classWiseMerging         = true;
+            this.settingDet1.batchSize                = settingDet1.batchSize;
             this.settingDet1.type                     = 'DYNAMIC';
             this.settingDet1.rescaleBox               = 2.5;
             this.settingDet1.numTopClassification     = 1;          % Ignored if 'STATIC'.
@@ -619,7 +621,7 @@ classdef Anet < handle
             numTopDir = detParams.numTopDirection;
             dvecSize = detParams.directionVectorSize;
             weightDirection = detParams.weightDirection;
-            testBatchSize = 256 / 2;
+            testBatchSize = detParams.batchSize;
             numMaxFeed = 50;
             interpolation = 'bilinear';
             inputCh = size( im, 3 );
@@ -759,7 +761,7 @@ classdef Anet < handle
             dvecSize = detParams.directionVectorSize;
             minNumDetPerCls = detParams.minNumDetectionPerClass;
             weightDirection = detParams.weightDirection;
-            testBatchSize = 256 / 2;
+            testBatchSize = detParams.batchSize;
             numMaxFeed = 50;
             interpolation = 'bilinear';
             inputCh = size( im, 3 );
