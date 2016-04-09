@@ -937,8 +937,8 @@ classdef Anet < handle
             piormt = 1 / ( posGotoMargin ^ 2 );
             piormt = num2str( piormt );
             piormt( piormt == '.' ) = 'P';
-            name = sprintf( 'SFTR_N%03d_PIORMT%s_NIMS%d_OF_%s', ...
-                numScaling, piormt, maxSide, this.db.getName );
+            name = sprintf( 'SFTE_N%03d_PIORMT%s_NIMS%d', ...
+                numScaling, piormt, maxSide );
             name( strfind( name, '__' ) ) = '';
             if name( end ) == '_', name( end ) = ''; end;
         end
