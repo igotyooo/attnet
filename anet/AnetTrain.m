@@ -157,6 +157,7 @@ classdef AnetTrain < handle
             end;
             anet.layers{ lastconv }.weights{ 1 } = lastwei{ 1 }( :, :, :, 1 : numOutDim );
             anet.layers{ lastconv }.weights{ 2 } = lastwei{ 2 }( 1 : numOutDim );
+	    anet.layers{ lastconv }.learningRate = anet.layers{ lastconv }.learningRate * 3; % Compansation to 1/3 in loss.
             % Initialize the output layer.
             anet.layers{ end }.type = 'custom';
             anet.layers{ end }.dimDir = 1 : numDimDir;
