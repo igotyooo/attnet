@@ -14,6 +14,7 @@ classdef Anet < handle
                 ( db, anet, settingProp, settingDet0, settingMrg0, settingDet1, settingMrg1 )
             this.db                                   = db;
             this.anet                                 = anet;
+            this.settingProp.gpu                      = settingProp.gpu;
             this.settingProp.flip                     = false;
             this.settingProp.numScaling               = 12;
             this.settingProp.dilate                   = 1 / 4;
@@ -100,8 +101,7 @@ classdef Anet < handle
             fprintf( '%s: Done.\n', upper( mfilename ) );
             % Fetch net on GPU.
             fprintf( '%s: Fetch anet on GPU.\n', upper( mfilename ) );
-            gpu = gpus( 1 );
-            gpuDevice( gpu );
+            gpuDevice( this.settingProp.gpu );
             this.anet = vl_simplenn_move( this.anet, 'gpu') ;
             fprintf( '%s: Done.\n', upper( mfilename ) );
         end
