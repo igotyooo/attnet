@@ -65,7 +65,7 @@ classdef Anet < handle
             this.settingMrg1 = setChanges...
                 ( this.settingMrg1, settingMrg1, upper( mfilename ) );
         end
-        function init( this, gpus )
+        function init( this )
             % Determine scaling factors.
             patchSide = this.anet.meta.map.patchSide;
             fpath = this.getScaleFactorPath;
@@ -316,7 +316,7 @@ classdef Anet < handle
                 disploop( numIm, iidx, sprintf( 'Det1 on IID%d in %dth(/%d) div.', iid, divId, numDiv ), cummt );
             end;
         end
-        function [ rid2tlbr, rid2score, rid2cid, rid2iid, idx2iid ] = getSubDbDet0( this,  numDiv, divId )
+        function res = getSubDbDet0( this,  numDiv, divId )
             iids = this.db.getTeiids;
             idx2iid = iids( divId : numDiv : numel( iids ) );
             numIm = numel( idx2iid );
@@ -337,8 +337,12 @@ classdef Anet < handle
             rid2score = cat( 1, rid2score{ : } );
             rid2cid = cat( 1, rid2cid{ : } );
             rid2iid = cat( 1, rid2iid{ : } );
+            res.did2tlbr = rid2tlbr;
+            res.did2score = rid2score;
+            res.did2cid = rid2cid;
+            res.did2iid = rid2iid;
         end;
-        function [ rid2tlbr, rid2score, rid2cid, rid2iid, idx2iid ] = getSubDbDet1( this,  numDiv, divId )
+        function res = getSubDbDet1( this,  numDiv, divId )
             iids = this.db.getTeiids;
             idx2iid = iids( divId : numDiv : numel( iids ) );
             numIm = numel( idx2iid );
@@ -359,6 +363,10 @@ classdef Anet < handle
             rid2score = cat( 1, rid2score{ : } );
             rid2cid = cat( 1, rid2cid{ : } );
             rid2iid = cat( 1, rid2iid{ : } );
+            res.did2tlbr = rid2tlbr;
+            res.did2score = rid2score;
+            res.did2cid = rid2cid;
+            res.did2iid = rid2iid;
         end;
     end
     methods( Access = private )
