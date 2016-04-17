@@ -25,7 +25,6 @@ classdef Anet < handle
             this.settingProp.numTopDirection          = 1;
             this.settingProp.onlyTargetAndBackground  = false;
             this.settingProp.directionVectorSize      = 30;
-            this.settingProp.minNumDetectionPerClass  = 0;
             this.settingDet0.batchSize                = settingDet0.batchSize;
             this.settingDet0.type                     = 'DYNAMIC';
             this.settingDet0.rescaleBox               = 1;
@@ -33,7 +32,6 @@ classdef Anet < handle
             this.settingDet0.numTopDirection          = 1;          % Ignored if 'STATIC'.
             this.settingDet0.onlyTargetAndBackground  = false;      % Ignored if 'DYNAMIC'.
             this.settingDet0.directionVectorSize      = 30;
-            this.settingDet0.minNumDetectionPerClass  = 0;
             this.settingDet0.weightDirection 	      = 0.5;
             this.settingMrg0.mergingOverlap           = 0.8;
             this.settingMrg0.mergingType              = 'OV';
@@ -47,7 +45,6 @@ classdef Anet < handle
             this.settingDet1.numTopDirection          = 1;          % Ignored if 'STATIC'.
             this.settingDet1.onlyTargetAndBackground  = false;      % Ignored if 'DYNAMIC'.
             this.settingDet1.directionVectorSize      = 30;
-            this.settingDet1.minNumDetectionPerClass  = 0;
             this.settingDet1.weightDirection          = 0.5;
             this.settingMrg1.mergingOverlap           = 0.6;
             this.settingMrg1.mergingType              = 'OV';
@@ -379,7 +376,6 @@ classdef Anet < handle
             [ rid2out, rid2tlbr ] = this.initGuess( im, cidx2cid );
             % Compute each region score.
             patchSide = this.anet.meta.map.patchSide;
-            minNumDetPerCls = this.settingProp.minNumDetectionPerClass;
             dvecSize = this.settingProp.directionVectorSize;
             numTopCls = this.settingProp.numTopClassification;
             numTopDir = this.settingProp.numTopDirection;
@@ -393,7 +389,6 @@ classdef Anet < handle
             rid2outCls = rid2out( dimCls, : );
             [ ~, rid2rank2cidx ] = sort( rid2outCls, 1, 'descend' );
             rid2tlbrProp = cell( numTarCls, 1 );
-            if minNumDetPerCls, rid2history = cell( numTarCls, 1 ); end;
             for cidx = 1 : numTarCls,
                 % Direction: DD condition.
                 dimTl = ( cidx - 1 ) * numDimPerDirLyr * 2 + 1;
@@ -411,14 +406,6 @@ classdef Anet < handle
                 rid2dd = rid2okTl & rid2okBr;
                 rid2dd = rid2dd & ( ~rid2ss );
                 rid2dd = rid2dd & ( rid2ptl == signDiag | rid2pbr == signDiag );
-                % Save history.
-                if minNumDetPerCls,
-                    rid2scoreCls = rid2outCls( cidx, : );
-                    rid2scoreTl = rid2outTl( signDiag, : );
-                    rid2scoreBr = rid2outBr( signDiag, : );
-                    rid2score = ( rid2scoreTl + rid2scoreBr ) / 2 + rid2scoreCls;
-                    rid2history{ cidx } = cat( 1, rid2tlbr( 1 : 4, : ), cidx * ones( 1, size( rid2tlbr, 2 ) ), rid2score );
-                end;
                 % Classification.
                 if onlyTarAndBgd,
                     rid2bgdScore = rid2outCls( numTarCls + 1, : );
@@ -455,33 +442,6 @@ classdef Anet < handle
             [ rid2tlbr_, ~, nid2rid ] = unique( rid2tlbr( 1 : 4, : )', 'rows' );
             nid2cid = rid2tlbr( 5, : )';
             rid2tlbr = rid2tlbr_';
-            % Support more regions if needed.
-            if minNumDetPerCls,
-                rid2history = cat( 2, rid2history{ : } );
-                rid2cidx = rid2history( 5, : );
-                rid2score = rid2history( 6, : );
-                rid2supp = cell( numTarCls, 1 );
-                for cidx = 1 : numTarCls,
-                    cid = cidx2cid( cidx );
-                    numAdd = max( minNumDetPerCls - sum( nid2cid == cid ), 0 );
-                    if numAdd,
-                        idx2rid = find( rid2cidx == cidx );
-                        [ ~, rank2idx ] = sort( rid2score( idx2rid ), 2, 'descend' );
-                        rank2rid = idx2rid( rank2idx );
-                        top = rank2rid( 1 : min( numAdd, numel( rank2rid ) ) );
-                        rid2supp{ cidx } = rid2history( :, top );
-                    end;
-                end;
-                rid2supp = cat( 2, rid2supp{ : } );
-                if ~isempty( rid2supp ),
-                    rid2tlbrSupp = round( rid2supp( 1 : 4, : ) );
-                    nid2cidSupp = cidx2cid( rid2supp( 5, : ) )';
-                    nid2ridSupp = size( rid2tlbr, 2 ) + ( 1 : numel( nid2cidSupp ) )';
-                    rid2tlbr = cat( 2, rid2tlbr, rid2tlbrSupp );
-                    nid2cid = cat( 1, nid2cid,  nid2cidSupp );
-                    nid2rid = cat( 1, nid2rid, nid2ridSupp );
-                end;
-            end;
             if isempty( rid2tlbr ),
                 rid2tlbr = zeros( 4, 0 );
                 nid2rid = zeros( 0, 1 );
@@ -767,7 +727,6 @@ classdef Anet < handle
             inputSide = this.anet.meta.inputSize( 1 );
             onlyTarAndBgd = detParams.onlyTargetAndBackground;
             dvecSize = detParams.directionVectorSize;
-            minNumDetPerCls = detParams.minNumDetectionPerClass;
             weightDirection = detParams.weightDirection;
             testBatchSize = detParams.batchSize;
             numMaxFeed = 50;
@@ -794,7 +753,6 @@ classdef Anet < handle
             did2cid = zeros( buffSize, 1, 'single' );
             did2fill = false( 1, buffSize );
             did = 1;
-            if minNumDetPerCls, rid2history = cell( numMaxFeed * numTarCls, 1 ); cnt = 0; end;
             if nargout == 4, fid2boxes = cell( numMaxFeed, 1 ); end;
             for feed = 1 : numMaxFeed,
                 % Feedforward.
@@ -848,15 +806,6 @@ classdef Anet < handle
                     crid2scoreBr = ( crid2outBr( signStop, : ) * 2 - sum( crid2outBr, 1 ) ) / numDimPerDirLyr;
                     crid2scoreCls = ( crid2outCls( cidx, : ) * 2 - sum( crid2outCls, 1 ) ) / numDimClsLyr;
                     crid2score = ( crid2scoreTl + crid2scoreBr ) / 2 * weightDirection + crid2scoreCls * ( 1 - weightDirection );
-                    % Save history.
-                    if minNumDetPerCls,
-                        cnt = cnt + 1;
-                        rid2scoreTl = ( rid2out( dimTl( signStop ), : ) * 2 - sum( rid2out( dimTl, : ), 1 ) ) / numDimPerDirLyr;
-                        rid2scoreBr = ( rid2out( dimBr( signStop ), : ) * 2 - sum( rid2out( dimBr, : ), 1 ) ) / numDimPerDirLyr;
-                        rid2scoreCls = ( rid2outCls( cidx, : ) * 2 - sum( rid2outCls, 1 ) ) / numDimClsLyr;
-                        rid2score = ( rid2scoreTl + rid2scoreBr ) / 2 * weightDirection + rid2scoreCls * ( 1 - weightDirection );
-                        rid2history{ cnt } = cat( 1, rid2tlbr( 1 : 4, : ), cidx * ones( 1, size( rid2tlbr, 2 ) ), rid2score );
-                    end;
                     % Find and store detections.
                     crid2det = crid2ss & crid2fgd; % Add more conditions!!!
                     numDet = sum( crid2det );
@@ -906,33 +855,6 @@ classdef Anet < handle
             did2score = did2score( did2fill );
             did2cid = did2cid( did2fill );
             if nargout == 4, fid2boxes = fid2boxes( ~cellfun( @isempty, fid2boxes ) ); end;
-            % Support more regions if needed.
-            if minNumDetPerCls,
-                rid2history = cat( 2, rid2history{ : } );
-                rid2cidx = rid2history( 5, : );
-                rid2score = rid2history( 6, : );
-                rid2supp = cell( numTarCls, 1 );
-                for cidx = 1 : numTarCls,
-                    cid = cidx2cid( cidx );
-                    numAdd = max( minNumDetPerCls - sum( did2cid == cid ), 0 );
-                    if numAdd,
-                        idx2rid = find( rid2cidx == cidx );
-                        [ ~, rank2idx ] = sort( rid2score( idx2rid ), 2, 'descend' );
-                        rank2rid = idx2rid( rank2idx );
-                        top = rank2rid( 1 : min( numAdd, numel( rank2rid ) ) );
-                        rid2supp{ cidx } = rid2history( :, top );
-                    end;
-                end;
-                rid2supp = cat( 2, rid2supp{ : } );
-                if ~isempty( rid2supp ),
-                    did2tlbrSupp = round( rid2supp( 1 : 4, : ) );
-                    did2cidSupp = cidx2cid( rid2supp( 5, : ) );
-                    did2scoreSupp = rid2supp( 6, : )';
-                    did2tlbr = cat( 2, did2tlbr, did2tlbrSupp );
-                    did2cid = cat( 1, did2cid, did2cidSupp );
-                    did2score = cat( 1, did2score,  did2scoreSupp );
-                end;
-            end;
         end
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         % Functions for file identification %
