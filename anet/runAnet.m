@@ -30,14 +30,12 @@ setting.anetProp.posGotoMargin                  = setting.anetdb.posGotoMargin;
 setting.anetProp.numTopClassification           = 1;
 setting.anetProp.numTopDirection                = 1;
 setting.anetProp.directionVectorSize            = 30;
-setting.anetProp.minNumDetectionPerClass        = 0;
 setting.anetDet0.batchSize                      = setting.train.batchSize * 2;
 setting.anetDet0.type                           = 'DYNAMIC';
 setting.anetDet0.rescaleBox                     = 1;
 setting.anetDet0.numTopClassification           = setting.anetProp.numTopClassification;
 setting.anetDet0.numTopDirection                = setting.anetProp.numTopDirection;
 setting.anetDet0.directionVectorSize            = setting.anetProp.directionVectorSize;
-setting.anetDet0.minNumDetectionPerClass        = 0;
 setting.anetDet0.weightDirection                = 0.5;
 setting.anetMrg0.mergingOverlap                 = 0.8;
 setting.anetMrg0.mergingType                    = 'NMS';
@@ -49,7 +47,6 @@ setting.anetDet1.type                           = 'STATIC';
 setting.anetDet1.rescaleBox                     = 2.5;
 setting.anetDet1.onlyTargetAndBackground        = true;
 setting.anetDet1.directionVectorSize            = 15;
-setting.anetDet1.minNumDetectionPerClass        = 1;
 setting.anetDet1.weightDirection                = setting.anetDet0.weightDirection;
 setting.anetMrg1.mergingOverlap                 = 0.5;
 setting.anetMrg1.mergingType                    = 'OV';
@@ -77,14 +74,14 @@ det.init;
 %% EVAL.
 clearvars -except db adb anet res det setting path;
 res0 = det.getSubDbDet0( 1, 1 );
-res0 = evalVoc07( res0, db, 2 );
+res0 = evalVoc( res0, db, 2 );
 res1 = det.getSubDbDet1( 1, 1 );
-res1 = evalVoc07( res1, db, 2 );
+res1 = evalVoc( res1, db, 2 );
 for cid = 1 : numel( db.cid2name ),
     plot( res1.cid2rec{ cid }, res1.cid2prec{ cid }, ' - ' ); grid;
     xlabel( 'recall' ); ylabel( 'precision' );
     title( sprintf( '%s, AP = %.2f', db.cid2name{ cid }, res1.cid2ap( cid ) * 100 ) );
-    pause;
+    waitforbuttonpress;
 end;
 
 %% DEMO.
