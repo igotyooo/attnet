@@ -1,5 +1,5 @@
-%% SET PARAMETERS ONLY.
-clc; close all; fclose all; clear all;
+function runAnetAll( numDiv, divId, gpuId )
+clc; clearvars -except numDiv divId gpuId; fclose all; close all;
 addpath( genpath( '..' ) ); init;
 setting.db                                      = path.db.voc2007;
 setting.prenet                                  = path.net.vgg16;
@@ -12,15 +12,15 @@ setting.anetdb.maximumImageSize                 = 9e6;
 setting.anetdb.posGotoMargin                    = 2.4;
 setting.anetdb.numQuantizeBetweenStopAndGoto    = 3;
 setting.anetdb.negIntOverObjLessThan            = 0.1;
-setting.train.gpus                              = 1 : 4;
+setting.train.gpus                              = gpuId;
 setting.train.numCpu                            = 12;
 setting.train.numSamplePerObj                   = [ 1; 14; 1; 16; ];
 setting.train.shuffleSequance                   = false;
 setting.train.useDropout                        = true;
 setting.train.suppLearnRate                     = 1;
 setting.train.learnRate                         = [ 0.01 * ones( 1, 7 ), 0.001 * ones( 1, 2 ), 0.0001 * ones( 1, 1 ) ] / 10;
-setting.train.batchSize                         = numel( setting.train.gpus ) * 24;
-setting.anetProp.gpu                            = 1;
+setting.train.batchSize                         = 96;
+setting.anetProp.gpu                            = gpuId;
 setting.anetProp.flip                           = false;
 setting.anetProp.numScaling                     = setting.anetdb.numScaling;
 setting.anetProp.dilate                         = setting.anetdb.dilate * 2;
@@ -53,8 +53,6 @@ setting.anetMrg1.mergingType                    = 'NMSIOU';
 setting.anetMrg1.mergingMethod                  = 'WAVG';
 setting.anetMrg1.minimumNumSupportBox           = 0;
 setting.anetMrg1.classWiseMerging               = true;
-
-%% DO THE JOB.
 db = Db( setting.db, path.dstDir );
 db.genDb;
 adb = AnetDb( db, setting.anetdb );
@@ -62,7 +60,7 @@ adb.init;
 adb = adb.makeAnetDb;
 anet = AnetTrain( db, adb, ...
     setting.prenet, setting.train );
-[ anet, res ] = anet.train;
+anet = anet.train;
 det = Anet( db, anet, ...
     setting.anetProp, ...
     setting.anetDet0, ...
@@ -70,46 +68,5 @@ det = Anet( db, anet, ...
     setting.anetDet1, ...
     setting.anetMrg1 );
 det.init;
-
-%% EVAL.
-clearvars -except db adb anet res det setting path;
-res1 = det.getSubDbDet1( 1, 1 );
-res1 = evalVoc( res1, db, 2 );
-% for cid = 1 : numel( db.cid2name ),
-%     plot( res1.cid2rec{ cid }, res1.cid2prec{ cid }, '-' ); grid;
-%     xlabel( 'recall' ); ylabel( 'precision' );
-%     title( sprintf( '%s, AP = %.2f', db.cid2name{ cid }, res1.cid2ap( cid ) * 100 ) );
-%     waitforbuttonpress;
-% end;
-
-% %% ANALYSIS.
-% close all;
-% clearvars -except db adb anet res det setting path res1;
-% cname = 'motorbike';
-% cid = find( cellfun( @( s )strcmp( s, cname ), db.cid2name ) );
-% fpranks = find( res1.cid2rank2fp{ cid } );
-% for f = 1 : numel( fpranks ),
-%     r = fpranks( f );
-%     s = res1.cid2rank2score{ cid }( r );
-%     b = res1.cid2rank2tlbr{ cid }( :, r );
-%     i = res1.cid2rank2iid{ cid }( r );
-%     im = db.iid2impath{ i };
-%     figure( 1 );
-%     plot( res1.cid2rec{ cid }, res1.cid2prec{ cid }, '-' ); grid; hold on; drawnow;
-%     plot( res1.cid2rec{ cid }( r ), res1.cid2prec{ cid }( r ), 'ro' ); 
-%     title( sprintf( '%s, AP = %.2f', db.cid2name{ cid }, res1.cid2ap( cid ) * 100 ) );
-%     hold off;
-%     waitforbuttonpress;
-%     figure( 2 );
-%     plottlbr( b, im, false, 'r', { sprintf( '%s: %.2f', cname, s ); } );
-%     title( sprintf( 'IID%06d', i ) );
-%     drawnow; hold off;
-%     waitforbuttonpress;
-% end;
-% 
-% 
-% %% DEMO.
-% close all;
-% iid = db.getTeiids;
-% iid = i; randsample( iid', 1 );
-% det.demoDet( iid, true );
+det.subDbDet0( numDiv, divId );
+det.subDbDet1( numDiv, divId );

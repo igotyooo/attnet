@@ -32,7 +32,7 @@ classdef Anet < handle
             this.settingDet0.numTopDirection          = 1;          % Ignored if 'STATIC'.
             this.settingDet0.onlyTargetAndBackground  = false;      % Ignored if 'DYNAMIC'.
             this.settingDet0.directionVectorSize      = 30;
-            this.settingDet0.weightDirection 	      = 0.5;
+            this.settingMrg0.weightDirection 	      = 0.5;
             this.settingMrg0.mergingOverlap           = 0.8;
             this.settingMrg0.mergingType              = 'OV';
             this.settingMrg0.mergingMethod            = 'WAVG';
@@ -45,7 +45,7 @@ classdef Anet < handle
             this.settingDet1.numTopDirection          = 1;          % Ignored if 'STATIC'.
             this.settingDet1.onlyTargetAndBackground  = false;      % Ignored if 'DYNAMIC'.
             this.settingDet1.directionVectorSize      = 30;
-            this.settingDet1.weightDirection          = 0.5;
+            this.settingMrg1.weightDirection          = 0.5;
             this.settingMrg1.mergingOverlap           = 0.6;
             this.settingMrg1.mergingType              = 'OV';
             this.settingMrg1.mergingMethod            = 'WAVG';
@@ -121,19 +121,21 @@ classdef Anet < handle
             try
                 data = load( fpath );
                 rid2tlbr = data.rid2tlbr;
-                rid2score = data.rid2score;
+                rid2out = data.rid2out;
                 rid2cid = data.rid2cid;
             catch
                 % 1. Get regions.
                 [ rid2tlbr, nid2rid, nid2cid ] = this.iid2prop( iid );
                 % 2. Tighten regions.
-                [ rid2tlbr, rid2score, rid2cid ] = this.iid2det...
+                [ rid2tlbr, rid2out, rid2cid ] = this.iid2det...
                     ( iid, rid2tlbr, nid2rid, nid2cid, this.settingDet0 );
                 this.makeDet0Dir;
-                save( fpath, 'rid2tlbr', 'rid2score', 'rid2cid' );
+                save( fpath, 'rid2tlbr', 'rid2out', 'rid2cid' );
             end;
+            if isempty( rid2tlbr ), rid2score = zeros( 0, 1 ); end;
             if nargout && ~isempty( rid2tlbr ),
                 % 3. Merge regions.
+                rid2score = this.scoring( rid2out, rid2cid );
                 [ rid2tlbr, rid2score, rid2cid ] = this.merge...
                     ( rid2tlbr, rid2score, rid2cid, this.settingMrg0 );
                 if isempty( rid2tlbr ), return; end;
@@ -151,7 +153,7 @@ classdef Anet < handle
             try
                 data = load( fpath );
                 rid2tlbr = data.rid2tlbr;
-                rid2score = data.rid2score;
+                rid2out = data.rid2out;
                 rid2cid = data.rid2cid;
             catch
                 % 1. Get regions.
@@ -159,13 +161,15 @@ classdef Anet < handle
                 nid2rid = 1 : numel( rid2cid );
                 nid2cid = rid2cid;
                 % 2. Tighten regions.
-                [ rid2tlbr, rid2score, rid2cid ] = this.iid2det...
+                [ rid2tlbr, rid2out, rid2cid ] = this.iid2det...
                     ( iid, rid2tlbr, nid2rid, nid2cid, this.settingDet1 );
                 this.makeDet1Dir;
-                save( fpath, 'rid2tlbr', 'rid2score', 'rid2cid' );
+                save( fpath, 'rid2tlbr', 'rid2out', 'rid2cid' );
             end;
+            if isempty( rid2tlbr ), rid2score = zeros( 0, 1 ); end;
             if nargout && ~isempty( rid2tlbr ),
                 % 3. Merge regions.
+                rid2score = this.scoring( rid2out, rid2cid );
                 [ rid2tlbr, rid2score, rid2cid ] = this.merge...
                     ( rid2tlbr, rid2score, rid2cid, this.settingMrg1 );
                 if isempty( rid2tlbr ), return; end;
@@ -178,6 +182,37 @@ classdef Anet < handle
                 end;
             end;
         end
+        function rid2score = scoring( this, rid2out, rid2cid )
+            weightDirection = 0.8;
+            signStop = 4;
+            numCls = numel( this.db.cid2name );
+            numDimPerDirLyr = 4;
+            numDimClsLyr = numCls + 1;
+            numDirDim = ( numDimPerDirLyr * 2 ) * numCls;
+            dimCls = ( numDirDim + 1 ) : ( numDirDim + numDimClsLyr );
+            rid2score = zeros( size( rid2out, 2 ), 1, 'single' );
+            for cid = 1 : numCls,
+                rid2tar = rid2cid == cid;
+                if ~any( rid2tar ), continue; end;
+                dimTl = ( cid - 1 ) * numDimPerDirLyr * 2 + 1;
+                dimTl = dimTl : dimTl + numDimPerDirLyr - 1;
+                dimBr = dimTl + numDimPerDirLyr;
+                outsTl = rid2out( dimTl, rid2tar );
+                outsBr = rid2out( dimBr, rid2tar );
+                outsCls = rid2out( dimCls, rid2tar );
+                % outsTl = exp( bsxfun( @minus, outsTl, max( outsTl, [  ], 1 ) ) );
+                % outsBr = exp( bsxfun( @minus, outsBr, max( outsBr, [  ], 1 ) ) );
+                % outsCls = exp( bsxfun( @minus, outsCls, max( outsCls, [  ], 1 ) ) );
+                % outsTl = bsxfun( @times, outsTl, 1 ./ sum( outsTl, 1 ) );
+                % outsBr = bsxfun( @times, outsBr, 1 ./ sum( outsBr, 1 ) );
+                % outsCls = bsxfun( @times, outsCls, 1 ./ sum( outsCls, 1 ) );
+                scoresTl = outsTl( signStop, : );
+                scoresBr = outsBr( signStop, : );
+                scoresCls = outsCls( cid, : ) - outsCls( end, : );
+                rid2score( rid2tar ) = weightDirection * ( scoresTl + scoresBr )' / 2 + ...
+                    ( 1 - weightDirection ) * scoresCls';
+            end;
+        end;
         function demoDet( this, iid, wait )
             flip = this.settingProp.flip;
             im = imread( this.db.iid2impath{ iid } );
@@ -194,19 +229,20 @@ classdef Anet < handle
             try
                 data = load( fpath );
                 rid2tlbr = data.rid2tlbr;
-                rid2score = data.rid2score;
+                rid2out = data.rid2out;
                 rid2cid = data.rid2cid;
             catch
-                [ rid2tlbr, rid2score, rid2cid ] = this.iid2det...
+                [ rid2tlbr, rid2out, rid2cid ] = this.iid2det...
                     ( iid, rid2tlbr, nid2rid, nid2cid, this.settingDet0 );
                 this.makeDet0Dir;
-                save( fpath, 'rid2tlbr', 'rid2score', 'rid2cid' );
+                save( fpath, 'rid2tlbr', 'rid2out', 'rid2cid' );
             end;
             rid2tlbr = round( rid2tlbr );
             figure( 2 ); set( gcf, 'color', 'w' );
             plottlbr( rid2tlbr, im, false, { 'r'; 'g'; 'b'; 'y' } );
             title( sprintf( 'Detection0, IID%06d', iid ) ); hold off; drawnow;
             % Demo 3: Merge0.
+            rid2score = this.scoring( rid2out, rid2cid );
             [ rid2tlbr, ~, rid2cid ] = this.merge...
                 ( rid2tlbr, rid2score, rid2cid, this.settingMrg0 );
             imbnd = [ 1; 1; this.db.iid2size( :, iid ); ];
@@ -225,21 +261,22 @@ classdef Anet < handle
             try
                 data = load( fpath );
                 rid2tlbr = data.rid2tlbr;
-                rid2score = data.rid2score;
+                rid2out = data.rid2out;
                 rid2cid = data.rid2cid;
             catch
                 nid2rid = 1 : numel( rid2cid );
                 nid2cid = rid2cid;
-                [ rid2tlbr, rid2score, rid2cid ] = this.iid2det...
+                [ rid2tlbr, rid2out, rid2cid ] = this.iid2det...
                     ( iid, rid2tlbr, nid2rid, nid2cid, this.settingDet1 );
                 this.makeDet1Dir;
-                save( fpath, 'rid2tlbr', 'rid2score', 'rid2cid' );
+                save( fpath, 'rid2tlbr', 'rid2out', 'rid2cid' );
             end;
             rid2tlbr = round( rid2tlbr );
             figure( 4 ); set( gcf, 'color', 'w' );
             plottlbr( rid2tlbr, im, false, { 'r'; 'g'; 'b'; 'y' } );
             title( sprintf( 'Detection1, IID%06d', iid ) ); hold off; drawnow;
             % Demo 5: Merge1.
+            rid2score = this.scoring( rid2out, rid2cid );
             [ rid2tlbr, rid2score, rid2cid ] = this.merge...
                 ( rid2tlbr, rid2score, rid2cid, this.settingMrg1 );
             imbnd = [ 1; 1; this.db.iid2size( :, iid ); ];
@@ -367,13 +404,12 @@ classdef Anet < handle
         end;
     end
     methods( Access = private )
-        function [ rid2tlbr, nid2rid, nid2cid ] = iid2propWrapper( this, iid, cidx2cid )
+        function [ rid2tlbr, nid2rid, nid2cid ] = iid2propWrapper( this, iid )
             % Initial guess.
-            cidx2cid = cidx2cid( : )';
             flip = this.settingProp.flip;
             im = imread( this.db.iid2impath{ iid } );
             if flip, im = fliplr( im ); end;
-            [ rid2out, rid2tlbr ] = this.initGuess( im, cidx2cid );
+            [ rid2out, rid2tlbr ] = this.initGuess( im );
             % Compute each region score.
             patchSide = this.anet.meta.map.patchSide;
             dvecSize = this.settingProp.directionVectorSize;
@@ -382,16 +418,16 @@ classdef Anet < handle
             onlyTarAndBgd = this.settingProp.onlyTargetAndBackground;
             signStop = 4;
             signDiag = 2;
-            numTarCls = numel( cidx2cid );
+            numCls = numel( this.db.cid2name );
             numDimPerDirLyr = 4;
-            numDimClsLyr = numTarCls + 1;
-            dimCls = numTarCls * numDimPerDirLyr * 2 + ( 1 : numDimClsLyr );
+            numDimClsLyr = numCls + 1;
+            dimCls = numCls * numDimPerDirLyr * 2 + ( 1 : numDimClsLyr );
             rid2outCls = rid2out( dimCls, : );
             [ ~, rid2rank2cidx ] = sort( rid2outCls, 1, 'descend' );
-            rid2tlbrProp = cell( numTarCls, 1 );
-            for cidx = 1 : numTarCls,
+            rid2tlbrProp = cell( numCls, 1 );
+            for cid = 1 : numCls,
                 % Direction: DD condition.
-                dimTl = ( cidx - 1 ) * numDimPerDirLyr * 2 + 1;
+                dimTl = ( cid - 1 ) * numDimPerDirLyr * 2 + 1;
                 dimTl = dimTl : dimTl + numDimPerDirLyr - 1;
                 dimBr = dimTl + numDimPerDirLyr;
                 rid2outTl = rid2out( dimTl, : );
@@ -408,12 +444,12 @@ classdef Anet < handle
                 rid2dd = rid2dd & ( rid2ptl == signDiag | rid2pbr == signDiag );
                 % Classification.
                 if onlyTarAndBgd,
-                    rid2bgdScore = rid2outCls( numTarCls + 1, : );
-                    rid2tarScore = rid2outCls( cidx, : );
+                    rid2bgdScore = rid2outCls( numCls + 1, : );
+                    rid2tarScore = rid2outCls( cid, : );
                     rid2okCls = rid2tarScore > rid2bgdScore;
                 else
-                    rid2bgd = rid2rank2cidx( 1, : ) == ( numTarCls + 1 );
-                    rid2okCls = any( rid2rank2cidx( 1 : min( numTopCls, numDimClsLyr ), : ) == cidx, 1 );
+                    rid2bgd = rid2rank2cidx( 1, : ) == ( numCls + 1 );
+                    rid2okCls = any( rid2rank2cidx( 1 : min( numTopCls, numDimClsLyr ), : ) == cid, 1 );
                     rid2okCls = rid2okCls & ( ~rid2bgd );
                 end;
                 % Update.
@@ -434,8 +470,8 @@ classdef Anet < handle
                     idx2tlbr( :, idx ) = tlbr - 1 + ...
                         [ idx2tlbr( 1 : 2, idx ); idx2tlbr( 1 : 2, idx ) ];
                 end;
-                idx2tlbr = cat( 1, idx2tlbr, cidx2cid( cidx ) * ones( 1, numCont ) );
-                rid2tlbrProp{ cidx } = idx2tlbr;
+                idx2tlbr = cat( 1, idx2tlbr, cid * ones( 1, numCont ) );
+                rid2tlbrProp{ cid } = idx2tlbr;
             end;
             rid2tlbr = round( cat( 2, rid2tlbrProp{ : } ) );
             if isempty( rid2tlbr ), rid2tlbr = zeros( 5, 0 ); end;
@@ -448,11 +484,15 @@ classdef Anet < handle
                 nid2cid = zeros( 0, 1 );
             end;
         end
-        function [ rid2tlbr, rid2score, rid2cid, fid2boxes ] = iid2det...
+        function [ rid2tlbr, rid2out, rid2cid, fid2boxes ] = iid2det...
                 ( this, iid, rid2tlbr0, nid2rid0, nid2cid0, detParams )
+            numCls = numel( this.db.cid2name );
+            numDimPerDirLyr = 4;
+            numDimClsLyr = numCls + 1;
+            numOutDim = ( numDimPerDirLyr * 2 ) * numCls + numDimClsLyr;
             if isempty( rid2tlbr0 ),
                 rid2tlbr = zeros( 4, 0 );
-                rid2score = zeros( 0, 1 );
+                rid2out = zeros( numOutDim, 0 );
                 rid2cid = zeros( 0, 1 );
                 return;
             end;
@@ -474,24 +514,24 @@ classdef Anet < handle
             switch detType,
                 case 'STATIC',
                     if nargout < 4
-                        [ rid2tlbr, rid2score, rid2cid ] = this.staticFitting...
+                        [ rid2tlbr, rid2out, rid2cid ] = this.staticFitting...
                             ( rid2tlbr0, nid2rid0, nid2cid0, imGlobal, detParams );
                     else
-                        [ rid2tlbr, rid2score, rid2cid, fid2boxes ] = this.staticFitting...
+                        [ rid2tlbr, rid2out, rid2cid, fid2boxes ] = this.staticFitting...
                             ( rid2tlbr0, nid2rid0, nid2cid0, imGlobal, detParams );
                     end;
                 case 'DYNAMIC',
                     if nargout < 4
-                        [ rid2tlbr, rid2score, rid2cid ] = this.dynamicFitting...
+                        [ rid2tlbr, rid2out, rid2cid ] = this.dynamicFitting...
                             ( rid2tlbr0, nid2rid0, nid2cid0, imGlobal, detParams );
                     else
-                        [ rid2tlbr, rid2score, rid2cid, fid2boxes ] = this.dynamicFitting...
+                        [ rid2tlbr, rid2out, rid2cid, fid2boxes ] = this.dynamicFitting...
                             ( rid2tlbr0, nid2rid0, nid2cid0, imGlobal, detParams );
                     end;
             end;
             if isempty( rid2tlbr ),
                 rid2tlbr = zeros( 4, 0 );
-                rid2score = zeros( 0, 1 );
+                rid2out = zeros( numOutDim, 0 );
                 rid2cid = zeros( 0, 1 );
                 return;
             end;
@@ -503,7 +543,7 @@ classdef Anet < handle
                 end;
             end;
         end
-        function [ rid2out, rid2tlbr ] = initGuess( this, im, cidx2cid )
+        function [ rid2out, rid2tlbr ] = initGuess( this, im )
             patchSide = this.anet.meta.map.patchSide;
             dilate = this.settingProp.dilate;
             maxSide = this.settingProp.normalizeImageMaxSide;
@@ -515,12 +555,12 @@ classdef Anet < handle
             rid2tlbr = extractDenseRegions...
                 ( imSize, sid2size, patchSide, this.anet.meta.map.stride, dilate, maximumImageSize );
             rid2tlbr = round( resizeTlbr( rid2tlbr, imSize, imSize0 ) );
-            rid2out = this.extractDenseActivations( im, cidx2cid, sid2size );
+            rid2out = this.extractDenseActivations( im, sid2size );
             if size( rid2out, 2 ) ~= size( rid2tlbr, 2 ),
                 error( 'Inconsistent number of regions.\n' ); end;
         end
         function rid2out = extractDenseActivations...
-                ( this, originalImage, cidx2cid, targetImageSizes )
+                ( this, originalImage, targetImageSizes )
             patchSide = this.anet.meta.map.patchSide;
             regionDilate = this.settingProp.dilate;
             maximumImageSize = this.settingProp.maximumImageSize;
@@ -547,71 +587,51 @@ classdef Anet < handle
                 im = normalizeAndCropImage( im, roi, rgbMean );
                 fprintf( '%s: Feed im of %dX%d size.\n', ...
                     upper( mfilename ), size( im, 1 ), size( im, 2 ) );
-                y = this.feedforward( im, cidx2cid );
+                y = this.feedforward( im );
                 [ nr, nc, z ] = size( y );
                 y = reshape( permute( y, [ 3, 1, 2 ] ), z, nr * nc );
                 rid2out{ sid } = y;
             end;
             rid2out = cat( 2, rid2out{ : } );
         end
-        function y = feedforward( this, im, cidx2cid )
-            cidx2cid = cidx2cid( : );
-            numCls = this.db.getNumClass;
-            targetDimDir = bsxfun( @plus, repmat( ( cidx2cid' - 1 ) * 4 * 2, 4 * 2, 1 ), ( 1 : ( 4 * 2 ) )' );
-            targetDimCls = [ cidx2cid; numCls + 1; ] + 4 * 2 * numCls;
-            targetDim = [ targetDimDir( : ); targetDimCls; ];
-            convs = cellfun( @( l )strcmp( l.type, 'conv' ), this.anet.layers );
-            convs = find( convs );
-            target = convs( end );
-            weight = this.anet.layers{ target }.weights{ 1 }( :, :, :, targetDim );
-            bias = this.anet.layers{ target }.weights{ 2 }( targetDim );
-            tmp.layers = this.anet.layers( 1 : target - 1 );
+        function y = feedforward( this, im )
             im = gpuArray( im );
-            res = vl_simplenn( tmp, im, [  ], [  ], ...
+            res = vl_simplenn( this.anet, im, [  ], [  ], ...
                 'accumulate', false, ...
                 'mode', 'test', ...
                 'conserveMemory', true );
-            x = res( target ).x; clear res im tmp;
-            y = vl_nnconv( x, weight, bias, 'pad', 0, 'stride', 1 ); clear x;
-            % Softmax.
-            % dims = 1 : ( 4 * 2 * numel( cidx2cid ) );
-            % dims = reshape( dims, [ 4, 2 * numel( cidx2cid ) ] );
-            % for d = dims, y( :, :, d, : ) = vl_nnsoftmax( y( :, :, d, : ) ); end;
-            % dims = ( 1 + 4 * 2 * numel( cidx2cid ) ) : size( y, 3 );
-            % y( :, :, dims, : ) = vl_nnsoftmax( y( :, :, dims, : ) );
+            y = res( end ).x; clear res im tmp;      
             y = gather( y );
         end
-        function [ did2tlbr, did2score, did2cid, fid2boxes ] = dynamicFitting...
+        function [ did2tlbr, did2out, did2cid, fid2boxes ] = dynamicFitting...
                 ( this, rid2tlbr, nid2rid, nid2cid, im, detParams )
             % Preparing for data.
             inputSide = this.anet.meta.inputSize( 1 );
             numTopCls = detParams.numTopClassification;
             numTopDir = detParams.numTopDirection;
             dvecSize = detParams.directionVectorSize;
-            weightDirection = detParams.weightDirection;
             testBatchSize = detParams.batchSize;
             numMaxFeed = 50;
             interpolation = 'bilinear';
             inputCh = size( im, 3 );
-            cidx2cid = unique( nid2cid );
-            numTarCls = numel( cidx2cid );
+            numCls = numel( this.db.cid2name );
             numDimPerDirLyr = 4;
-            numDimClsLyr = numTarCls + 1;
-            numOutDim = ( numDimPerDirLyr * 2 ) * numTarCls + numDimClsLyr;
-            dimCls = numTarCls * numDimPerDirLyr * 2 + ( 1 : numDimClsLyr );
+            numDimClsLyr = numCls + 1;
+            numOutDim = ( numDimPerDirLyr * 2 ) * numCls + numDimClsLyr;
+            dimCls = numCls * numDimPerDirLyr * 2 + ( 1 : numDimClsLyr );
             signStop = numDimPerDirLyr;
             signDiag = 2;
             numRegn = size( rid2tlbr, 2 );
             buffSize = 5000;
             if ~numRegn,
                 did2tlbr = zeros( 4, 0, 'single' );
-                did2score = zeros( 0, 1, 'single' );
+                did2out = zeros( numOutDim, 0, 'single' );
                 did2cid = zeros( 0, 1, 'single' );
                 return;
             end;
             % Detection on each region.
             did2tlbr = zeros( 4, buffSize, 'single' );
-            did2score = zeros( buffSize, 1, 'single' );
+            did2out = zeros( numOutDim, buffSize, 'single' );
             did2cid = zeros( buffSize, 1, 'single' );
             did2fill = false( 1, buffSize );
             did = 1;
@@ -632,18 +652,17 @@ classdef Anet < handle
                         brid2im( :, :, :, brid ) = imresize...
                             ( imRegn, [ inputSide, inputSide ], 'method', interpolation );
                     end;
-                    brid2out = this.feedforward( brid2im, cidx2cid );
+                    brid2out = this.feedforward( brid2im );
                     brid2out = permute( brid2out, [ 3, 4, 1, 2 ] );
                     rid2out( :, rids ) = brid2out;
                 end;
                 % Do the job.
-                nrid2tlbr = cell( numTarCls, 1 );
+                nrid2tlbr = cell( numCls, 1 );
                 rid2outCls = rid2out( dimCls, : );
                 [ ~, rid2rank2cidx ] = sort( rid2outCls, 1, 'descend' );
                 rid2cidx = rid2rank2cidx( 1, : );
-                for cidx = 1 : numTarCls,
-                    cid = cidx2cid( cidx );
-                    dimTl = ( cidx - 1 ) * numDimPerDirLyr * 2 + 1;
+                for cid = 1 : numCls,
+                    dimTl = ( cid - 1 ) * numDimPerDirLyr * 2 + 1;
                     dimTl = dimTl : dimTl + numDimPerDirLyr - 1;
                     dimBr = dimTl + numDimPerDirLyr;
                     rid2outTl = rid2out( dimTl, : );
@@ -658,10 +677,10 @@ classdef Anet < handle
                     rid2dd = rid2okTl & rid2okBr;
                     rid2dd = rid2dd & ( ~rid2ss );
                     rid2dd = rid2dd & ( rid2ptl == signDiag | rid2pbr == signDiag );
-                    rid2bgd = rid2cidx == ( numTarCls + 1 );
-                    rid2high = any( rid2rank2cidx( 1 : min( numTopCls, numDimClsLyr ), : ) == cidx, 1 );
+                    rid2bgd = rid2cidx == ( numCls + 1 );
+                    rid2high = any( rid2rank2cidx( 1 : min( numTopCls, numDimClsLyr ), : ) == cid, 1 );
                     rid2high = rid2high & ( ~rid2bgd );
-                    rid2top = rid2cidx == cidx;
+                    rid2top = rid2cidx == cid;
                     nid2purebred = nid2cid == cid;
                     rid2purebred = false( 1, numRegn );
                     rid2purebred( nid2rid( nid2purebred ) ) = true;
@@ -671,13 +690,7 @@ classdef Anet < handle
                     dids = did : did + numDet - 1;
                     did2tlbr( :, dids ) = rid2tlbr( :, rid2det );
                     did2cid( dids ) = cid;
-                    didx2outTl = rid2outTl( :, rid2det );
-                    didx2outBr = rid2outBr( :, rid2det );
-                    didx2outCls = rid2outCls( :, rid2det );
-                    didx2scoreTl = ( didx2outTl( signStop, : ) * 2 - sum( didx2outTl, 1 ) ) / numDimPerDirLyr;
-                    didx2scoreBr = ( didx2outBr( signStop, : ) * 2 - sum( didx2outBr, 1 ) ) / numDimPerDirLyr;
-                    didx2scoreCls = ( didx2outCls( cidx, : ) * 2 - sum( didx2outCls, 1 ) ) / numDimClsLyr;
-                    did2score( dids ) = ( didx2scoreTl + didx2scoreBr ) / 2 * weightDirection + didx2scoreCls * ( 1 - weightDirection );
+                    did2out( :, dids ) = rid2out( :, rid2det );
                     did2fill( dids ) = true;
                     did = did + numDet;
                     if nargout == 4,
@@ -704,7 +717,7 @@ classdef Anet < handle
                             [ idx2tlbr( 1 : 2, idx ); idx2tlbr( 1 : 2, idx ) ];
                     end;
                     idx2tlbr = cat( 1, idx2tlbr, cid * ones( 1, numCont ) );
-                    nrid2tlbr{ cidx } = idx2tlbr;
+                    nrid2tlbr{ cid } = idx2tlbr;
                 end;
                 rid2tlbr = round( cat( 2, nrid2tlbr{ : } ) );
                 if isempty( rid2tlbr ), break; end;
@@ -717,39 +730,37 @@ classdef Anet < handle
                 end;
             end;
             did2tlbr = did2tlbr( :, did2fill );
-            did2score = did2score( did2fill );
+            did2out = did2out( :, did2fill );
             did2cid = did2cid( did2fill );
             if nargout == 4, fid2boxes = fid2boxes( ~cellfun( @isempty, fid2boxes ) ); end;
         end
-        function [ did2tlbr, did2score, did2cid, fid2boxes ] = staticFitting...
+        function [ did2tlbr, did2out, did2cid, fid2boxes ] = staticFitting...
                 ( this, rid2tlbr, nid2rid, nid2cid, im, detParams )
             % Preparing for data.
             inputSide = this.anet.meta.inputSize( 1 );
             onlyTarAndBgd = detParams.onlyTargetAndBackground;
             dvecSize = detParams.directionVectorSize;
-            weightDirection = detParams.weightDirection;
             testBatchSize = detParams.batchSize;
             numMaxFeed = 50;
             interpolation = 'bilinear';
             inputCh = size( im, 3 );
-            cidx2cid = unique( nid2cid );
-            numTarCls = numel( cidx2cid );
+            numCls = numel( this.db.cid2name );
             numDimPerDirLyr = 4;
-            numDimClsLyr = numTarCls + 1;
-            numOutDim = ( numDimPerDirLyr * 2 ) * numTarCls + numDimClsLyr;
-            dimCls = numTarCls * numDimPerDirLyr * 2 + ( 1 : numDimClsLyr );
+            numDimClsLyr = numCls + 1;
+            numOutDim = ( numDimPerDirLyr * 2 ) * numCls + numDimClsLyr;
+            dimCls = numCls * numDimPerDirLyr * 2 + ( 1 : numDimClsLyr );
             signStop = numDimPerDirLyr;
             numRegn = size( rid2tlbr, 2 );
             buffSize = numel( nid2rid );
             if ~numRegn,
                 did2tlbr = zeros( 4, 0, 'single' );
-                did2score = zeros( 0, 1, 'single' );
+                did2out = zeros( numOutDim, 0, 'single' );
                 did2cid = zeros( 0, 1, 'single' );
                 return;
             end;
             % Detection on each region.
             did2tlbr = zeros( 4, buffSize, 'single' );
-            did2score = zeros( buffSize, 1, 'single' );
+            did2out = zeros( numOutDim, buffSize, 'single' );
             did2cid = zeros( buffSize, 1, 'single' );
             did2fill = false( 1, buffSize );
             did = 1;
@@ -770,16 +781,15 @@ classdef Anet < handle
                         brid2im( :, :, :, brid ) = imresize...
                             ( imRegn, [ inputSide, inputSide ], 'method', interpolation );
                     end;
-                    brid2out = this.feedforward( brid2im, cidx2cid );
+                    brid2out = this.feedforward( brid2im );
                     brid2out = permute( brid2out, [ 3, 4, 1, 2 ] );
                     rid2out( :, rids ) = brid2out;
                 end;
                 % Do the job.
-                nrid2tlbr = cell( numTarCls, 1 );
+                nrid2tlbr = cell( numCls, 1 );
                 rid2outCls = rid2out( dimCls, : );
                 [ ~, rid2cidx ] = max( rid2outCls, [  ], 1 );
-                for cidx = 1 : numTarCls,
-                    cid = cidx2cid( cidx );
+                for cid = 1 : numCls,
                     rid2tar = false( size( nid2rid ) );
                     rid2tar( nid2rid( nid2cid == cid ) ) = true;
                     if ~sum( rid2tar ), continue; end;
@@ -788,13 +798,13 @@ classdef Anet < handle
                     crid2outCls = rid2outCls( :, rid2tar );
                     crid2cidx = rid2cidx( rid2tar );
                     if onlyTarAndBgd,
-                        crid2bgdScore = crid2outCls( numTarCls + 1, : );
-                        crid2tarScore = crid2outCls( cidx, : );
+                        crid2bgdScore = crid2outCls( numCls + 1, : );
+                        crid2tarScore = crid2outCls( cid, : );
                         crid2fgd = crid2tarScore > crid2bgdScore;
                     else
-                        crid2fgd = crid2cidx ~= ( numTarCls + 1 );
+                        crid2fgd = crid2cidx ~= ( numCls + 1 );
                     end;
-                    dimTl = ( cidx - 1 ) * numDimPerDirLyr * 2 + 1;
+                    dimTl = ( cid - 1 ) * numDimPerDirLyr * 2 + 1;
                     dimTl = dimTl : dimTl + numDimPerDirLyr - 1;
                     dimBr = dimTl + numDimPerDirLyr;
                     crid2outTl = crid2out( dimTl, : );
@@ -802,16 +812,12 @@ classdef Anet < handle
                     [ ~, crid2ptl ] = max( crid2outTl, [  ], 1 );
                     [ ~, crid2pbr ] = max( crid2outBr, [  ], 1 );
                     crid2ss = crid2ptl == signStop & crid2pbr == signStop;
-                    crid2scoreTl = ( crid2outTl( signStop, : ) * 2 - sum( crid2outTl, 1 ) ) / numDimPerDirLyr;
-                    crid2scoreBr = ( crid2outBr( signStop, : ) * 2 - sum( crid2outBr, 1 ) ) / numDimPerDirLyr;
-                    crid2scoreCls = ( crid2outCls( cidx, : ) * 2 - sum( crid2outCls, 1 ) ) / numDimClsLyr;
-                    crid2score = ( crid2scoreTl + crid2scoreBr ) / 2 * weightDirection + crid2scoreCls * ( 1 - weightDirection );
                     % Find and store detections.
                     crid2det = crid2ss & crid2fgd; % Add more conditions!!!
                     numDet = sum( crid2det );
                     dids = did : did + numDet - 1;
                     did2tlbr( :, dids ) = crid2tlbr( :, crid2det );
-                    did2score( dids ) = crid2score( crid2det );
+                    did2out( :, dids ) = crid2out( :, crid2det );
                     did2cid( dids ) = cid;
                     did2fill( dids ) = true;
                     did = did + numDet;
@@ -852,7 +858,7 @@ classdef Anet < handle
                 end;
             end;
             did2tlbr = did2tlbr( :, did2fill );
-            did2score = did2score( did2fill );
+            did2out = did2out( :, did2fill );
             did2cid = did2cid( did2fill );
             if nargout == 4, fid2boxes = fid2boxes( ~cellfun( @isempty, fid2boxes ) ); end;
         end
@@ -978,6 +984,12 @@ classdef Anet < handle
                         case 'NMS',
                             rid2score = rid2score( : )';
                             [ rid2tlbr_{ cidx }, rid2score_{ cidx } ] = nms( ...
+                                [ rid2tlbr( :, rid2ok ); rid2score( rid2ok ); ]', ...
+                                mergingOverlap, minNumSuppBox, mergingMethod );
+                            rid2tlbr_{ cidx } = rid2tlbr_{ cidx }';
+                        case 'NMSIOU',
+                            rid2score = rid2score( : )';
+                            [ rid2tlbr_{ cidx }, rid2score_{ cidx } ] = nms_iou( ...
                                 [ rid2tlbr( :, rid2ok ); rid2score( rid2ok ); ]', ...
                                 mergingOverlap, minNumSuppBox, mergingMethod );
                             rid2tlbr_{ cidx } = rid2tlbr_{ cidx }';
