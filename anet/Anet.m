@@ -98,8 +98,10 @@ classdef Anet < handle
             fprintf( '%s: Done.\n', upper( mfilename ) );
             % Fetch net on GPU.
             fprintf( '%s: Fetch anet on GPU.\n', upper( mfilename ) );
-            gpuDevice( this.settingProp.gpu );
-            this.anet = vl_simplenn_move( this.anet, 'gpu') ;
+            if this.settingProp.gpu > 0,
+                gpuDevice( this.settingProp.gpu );
+                this.anet = vl_simplenn_move( this.anet, 'gpu') ;
+            end;
             fprintf( '%s: Done.\n', upper( mfilename ) );
         end
         function [ rid2tlbr, nid2rid, nid2cid ] = iid2prop( this, iid )
