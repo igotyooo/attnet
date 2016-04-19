@@ -97,12 +97,12 @@ classdef Anet < handle
             end;
             fprintf( '%s: Done.\n', upper( mfilename ) );
             % Fetch net on GPU.
-            fprintf( '%s: Fetch anet on GPU.\n', upper( mfilename ) );
             if this.settingProp.gpu > 0,
+                fprintf( '%s: Fetch anet on GPU.\n', upper( mfilename ) );
                 gpuDevice( this.settingProp.gpu );
                 this.anet = vl_simplenn_move( this.anet, 'gpu') ;
+                fprintf( '%s: Done.\n', upper( mfilename ) );
             end;
-            fprintf( '%s: Done.\n', upper( mfilename ) );
         end
         function [ rid2tlbr, nid2rid, nid2cid ] = iid2prop( this, iid )
             cidx2cid = 1 : this.db.getNumClass;
@@ -608,6 +608,8 @@ classdef Anet < handle
         function [ did2tlbr, did2out, did2cid, fid2boxes ] = dynamicFitting...
                 ( this, rid2tlbr, nid2rid, nid2cid, im, detParams )
             % Preparing for data.
+            did2vecTl = this.anet.meta.directions.did2vecTl;
+            did2vecBr = this.anet.meta.directions.did2vecBr;
             inputSide = this.anet.meta.inputSize( 1 );
             numTopCls = detParams.numTopClassification;
             numTopDir = detParams.numTopDirection;
@@ -632,6 +634,7 @@ classdef Anet < handle
                 return;
             end;
             % Detection on each region.
+            rid2flip = rand( numRegn, 1 ) > 0.5;
             did2tlbr = zeros( 4, buffSize, 'single' );
             did2out = zeros( numOutDim, buffSize, 'single' );
             did2cid = zeros( buffSize, 1, 'single' );
@@ -647,10 +650,12 @@ classdef Anet < handle
                     rids = r : min( r + testBatchSize - 1, numRegn );
                     bsize = numel( rids );
                     brid2tlbr = rid2tlbr( :, rids );
+                    brid2flip = rid2flip( rids );
                     brid2im = zeros( inputSide, inputSide, inputCh, bsize, 'single' );
                     for brid = 1 : bsize,
                         roi = brid2tlbr( :, brid );
                         imRegn = im( roi( 1 ) : roi( 3 ), roi( 2 ) : roi( 4 ), : );
+                        if brid2flip( brid ), imRegn = fliplr( imRegn ); end;
                         brid2im( :, :, :, brid ) = imresize...
                             ( imRegn, [ inputSide, inputSide ], 'method', interpolation );
                     end;
@@ -705,15 +710,17 @@ classdef Anet < handle
                     numCont = sum( rid2cont );
                     if ~numCont, continue; end;
                     idx2tlbr = rid2tlbr( :, rid2cont );
+                    idx2flip = rid2flip( rid2cont );
                     idx2ptl = rid2ptl( rid2cont );
                     idx2pbr = rid2pbr( rid2cont );
                     idx2tlbrWarp = [ ...
-                        this.anet.meta.directions.did2vecTl( :, idx2ptl ) * dvecSize + 1; ...
-                        this.anet.meta.directions.did2vecBr( :, idx2pbr ) * dvecSize + inputSide; ];
+                        did2vecTl( :, idx2ptl ) * dvecSize + 1; ...
+                        did2vecBr( :, idx2pbr ) * dvecSize + inputSide; ];
                     for idx = 1 : numCont,
                         w = idx2tlbr( 4, idx ) - idx2tlbr( 2, idx ) + 1;
                         h = idx2tlbr( 3, idx ) - idx2tlbr( 1, idx ) + 1;
                         tlbrWarp = idx2tlbrWarp( :, idx );
+                        if idx2flip( idx ), tlbrWarp = flipTlbr( tlbrWarp, inputSide ); end;
                         tlbr = resizeTlbr( tlbrWarp, [ inputSide, inputSide ], [ h, w ] );
                         idx2tlbr( :, idx ) = tlbr - 1 + ...
                             [ idx2tlbr( 1 : 2, idx ); idx2tlbr( 1 : 2, idx ) ];
@@ -727,6 +734,7 @@ classdef Anet < handle
                 nid2cid = rid2tlbr( 5, : )';
                 rid2tlbr = rid2tlbr_';
                 numRegn = size( rid2tlbr, 2 );
+                rid2flip = rand( numRegn, 1 ) > 0.5;
                 if nargout == 4,
                     fid2boxes{ feed } = cat( 2, fid2boxes{ feed }, cat( 1, rid2tlbr, zeros( 1, numRegn ) ) );
                 end;
@@ -739,6 +747,8 @@ classdef Anet < handle
         function [ did2tlbr, did2out, did2cid, fid2boxes ] = staticFitting...
                 ( this, rid2tlbr, nid2rid, nid2cid, im, detParams )
             % Preparing for data.
+            did2vecTl = this.anet.meta.directions.did2vecTl;
+            did2vecBr = this.anet.meta.directions.did2vecBr;
             inputSide = this.anet.meta.inputSize( 1 );
             onlyTarAndBgd = detParams.onlyTargetAndBackground;
             dvecSize = detParams.directionVectorSize;
@@ -761,6 +771,7 @@ classdef Anet < handle
                 return;
             end;
             % Detection on each region.
+            rid2flip = rand( numRegn, 1 ) > 0.5;
             did2tlbr = zeros( 4, buffSize, 'single' );
             did2out = zeros( numOutDim, buffSize, 'single' );
             did2cid = zeros( buffSize, 1, 'single' );
@@ -776,10 +787,12 @@ classdef Anet < handle
                     rids = r : min( r + testBatchSize - 1, numRegn );
                     bsize = numel( rids );
                     brid2tlbr = rid2tlbr( :, rids );
+                    brid2flip = rid2flip( rids );
                     brid2im = zeros( inputSide, inputSide, inputCh, bsize, 'single' );
                     for brid = 1 : bsize,
                         roi = brid2tlbr( :, brid );
                         imRegn = im( roi( 1 ) : roi( 3 ), roi( 2 ) : roi( 4 ), : );
+                        if brid2flip( brid ), imRegn = fliplr( imRegn ); end;
                         brid2im( :, :, :, brid ) = imresize...
                             ( imRegn, [ inputSide, inputSide ], 'method', interpolation );
                     end;
@@ -795,7 +808,8 @@ classdef Anet < handle
                     rid2tar = false( size( nid2rid ) );
                     rid2tar( nid2rid( nid2cid == cid ) ) = true;
                     if ~sum( rid2tar ), continue; end;
-                    crid2tlbr = rid2tlbr(  :, rid2tar );
+                    crid2tlbr = rid2tlbr( :, rid2tar );
+                    crid2flip = rid2flip( rid2tar );
                     crid2out = rid2out( :, rid2tar );
                     crid2outCls = rid2outCls( :, rid2tar );
                     crid2cidx = rid2cidx( rid2tar );
@@ -832,15 +846,17 @@ classdef Anet < handle
                     numCont = sum( crid2cont );
                     if ~numCont, continue; end;
                     idx2tlbr = crid2tlbr( :, crid2cont );
+                    idx2flip = crid2flip( crid2cont );
                     idx2ptl = crid2ptl( crid2cont );
                     idx2pbr = crid2pbr( crid2cont );
                     idx2tlbrWarp = [ ...
-                        this.anet.meta.directions.did2vecTl( :, idx2ptl ) * dvecSize + 1; ...
-                        this.anet.meta.directions.did2vecBr( :, idx2pbr ) * dvecSize + inputSide; ];
+                        did2vecTl( :, idx2ptl ) * dvecSize + 1; ...
+                        did2vecBr( :, idx2pbr ) * dvecSize + inputSide; ];
                     for idx = 1 : numCont,
                         w = idx2tlbr( 4, idx ) - idx2tlbr( 2, idx ) + 1;
                         h = idx2tlbr( 3, idx ) - idx2tlbr( 1, idx ) + 1;
                         tlbrWarp = idx2tlbrWarp( :, idx );
+                        if idx2flip( idx ), tlbrWarp = flipTlbr( tlbrWarp, inputSide ); end;
                         tlbr = resizeTlbr( tlbrWarp, [ inputSide, inputSide ], [ h, w ] );
                         idx2tlbr( :, idx ) = tlbr - 1 + ...
                             [ idx2tlbr( 1 : 2, idx ); idx2tlbr( 1 : 2, idx ) ];
@@ -854,6 +870,7 @@ classdef Anet < handle
                 nid2cid = rid2tlbr( 5, : )';
                 rid2tlbr = rid2tlbr_';
                 numRegn = size( rid2tlbr, 2 );
+                rid2flip = rand( numRegn, 1 ) > 0.5;
                 if nargout == 4,
                     fid2boxes{ feed } = cat( 2, fid2boxes{ feed }, ...
                         cat( 1, rid2tlbr, zeros( 1, numRegn ) ) );
