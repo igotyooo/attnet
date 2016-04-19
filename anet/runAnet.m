@@ -44,8 +44,8 @@ setting.anetMrg0.minimumNumSupportBox           = 0;
 setting.anetMrg0.classWiseMerging               = true;
 setting.anetDet1.batchSize                      = setting.train.batchSize * 2;
 setting.anetDet1.type                           = 'STATIC';
-setting.anetDet1.rescaleBox                     = 3; % 2.5; 
-setting.anetDet1.onlyTargetAndBackground        = true;
+setting.anetDet1.rescaleBox                     = 3;
+setting.anetDet1.onlyTargetAndBackground        = false;
 setting.anetDet1.directionVectorSize            = 15;
 setting.anetMrg1.weightDirection                = setting.anetMrg0.weightDirection;
 setting.anetMrg1.mergingOverlap                 = 0.45;
@@ -71,16 +71,22 @@ det = Anet( db, anet, ...
     setting.anetMrg1 );
 det.init;
 
-%% EVAL.
+%% EVALUATION.
 clearvars -except db adb anet res det setting path;
 res1 = det.getSubDbDet1( 1, 1 );
 res1 = evalVoc( res1, db, 2 );
-% for cid = 1 : numel( db.cid2name ),
-%     plot( res1.cid2rec{ cid }, res1.cid2prec{ cid }, '-' ); grid;
-%     xlabel( 'recall' ); ylabel( 'precision' );
-%     title( sprintf( '%s, AP = %.2f', db.cid2name{ cid }, res1.cid2ap( cid ) * 100 ) );
-%     waitforbuttonpress;
-% end;
+for cid = 1 : numel( db.cid2name ),
+    plot( res1.cid2rec{ cid }, res1.cid2prec{ cid }, '-' ); grid;
+    xlabel( 'recall' ); ylabel( 'precision' );
+    title( sprintf( '%s, AP = %.2f', db.cid2name{ cid }, res1.cid2ap( cid ) * 100 ) );
+    waitforbuttonpress;
+end;
+
+%% DEMO.
+close all;
+iid = db.getTeiids;
+iid = i; randsample( iid', 1 );
+det.demoDet( iid, true );
 
 % %% ANALYSIS.
 % close all;
@@ -105,11 +111,9 @@ res1 = evalVoc( res1, db, 2 );
 %     title( sprintf( 'IID%06d', i ) );
 %     drawnow; hold off;
 %     waitforbuttonpress;
+%     figure( 3 );
+%     plottlbr( db.oid2bbox( :, db.oid2iid == i ), im, false, 'b', db.cid2name( db.oid2cid( db.oid2iid == i ) ) );
+%     title( sprintf( 'IID%06d', i ) );
+%     drawnow; hold off;
+%     waitforbuttonpress;
 % end;
-% 
-% 
-% %% DEMO.
-% close all;
-% iid = db.getTeiids;
-% iid = i; randsample( iid', 1 );
-% det.demoDet( iid, true );
