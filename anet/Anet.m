@@ -105,7 +105,6 @@ classdef Anet < handle
             end;
         end
         function [ rid2tlbr, nid2rid, nid2cid ] = iid2prop( this, iid )
-            cidx2cid = 1 : this.db.getNumClass;
             fpath = this.getPropPath( iid );
             try
                 data = load( fpath );
@@ -113,7 +112,7 @@ classdef Anet < handle
                 nid2rid = data.nid2rid;
                 nid2cid = data.nid2cid;
             catch
-                [ rid2tlbr, nid2rid, nid2cid ] = this.iid2propWrapper( iid, cidx2cid );
+                [ rid2tlbr, nid2rid, nid2cid ] = this.iid2propWrapper( iid );
                 this.makePropDir;
                 save( fpath, 'rid2tlbr', 'nid2rid', 'nid2cid' );
             end;
