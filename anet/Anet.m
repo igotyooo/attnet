@@ -28,6 +28,7 @@ classdef Anet < handle
             this.settingDet0.batchSize                = settingDet0.batchSize;
             this.settingDet0.type                     = 'DYNAMIC';
             this.settingDet0.rescaleBox               = 1;
+            this.settingDet0.rescaleBoxStd            = 0;
             this.settingDet0.numTopClassification     = 1;          % Ignored if 'STATIC'.
             this.settingDet0.numTopDirection          = 1;          % Ignored if 'STATIC'.
             this.settingDet0.onlyTargetAndBackground  = false;      % Ignored if 'DYNAMIC'.
@@ -41,6 +42,7 @@ classdef Anet < handle
             this.settingDet1.batchSize                = settingDet1.batchSize;
             this.settingDet1.type                     = 'DYNAMIC';
             this.settingDet1.rescaleBox               = 2.5;
+            this.settingDet1.rescaleBoxStd            = 0;
             this.settingDet1.numTopClassification     = 1;          % Ignored if 'STATIC'.
             this.settingDet1.numTopDirection          = 1;          % Ignored if 'STATIC'.
             this.settingDet1.onlyTargetAndBackground  = false;      % Ignored if 'DYNAMIC'.
@@ -501,8 +503,19 @@ classdef Anet < handle
             % Pre-processing: box re-scaling.
             detType = detParams.type;
             rescaleBox = detParams.rescaleBox;
-            rid2tlbr0 = scaleBoxes( rid2tlbr0, sqrt( rescaleBox ), sqrt( rescaleBox ) );
-            rid2tlbr0 = round( rid2tlbr0 );
+            rescaleBoxStd = detParams.rescaleBoxStd;
+            rid2tlbr0_ = scaleBoxes( rid2tlbr0, sqrt( rescaleBox ), sqrt( rescaleBox ) );
+            if rescaleBoxStd,
+                sigh = ( rid2tlbr0_( 3, : ) - rid2tlbr0_( 1, : ) ) * ( rescaleBox - 1 ) / rescaleBox / 3;
+                sigw = ( rid2tlbr0_( 4, : ) - rid2tlbr0_( 2, : ) ) * ( rescaleBox - 1 ) / rescaleBox / 3;
+                noise = randn( size( rid2tlbr0_ ) ) .* [ sigh; sigw; sigh; sigw ] * rescaleBoxStd;
+                rid2tlbr0_ = rid2tlbr0_ + noise;
+                rid2tlbr0_( 1, : ) = min( [ rid2tlbr0_( 1, : ); rid2tlbr0( 1, : ) ], [  ], 1 );
+                rid2tlbr0_( 2, : ) = min( [ rid2tlbr0_( 2, : ); rid2tlbr0( 2, : ) ], [  ], 1 );
+                rid2tlbr0_( 3, : ) = max( [ rid2tlbr0_( 3, : ); rid2tlbr0( 3, : ) ], [  ], 1 );
+                rid2tlbr0_( 4, : ) = max( [ rid2tlbr0_( 4, : ); rid2tlbr0( 4, : ) ], [  ], 1 );
+            end;
+            rid2tlbr0 = round( rid2tlbr0_ );
             rgbMean = reshape( this.anet.meta.normalization.averageImage, [ 1, 1, 3 ] );
             % Do detection on each region.
             flip = this.settingProp.flip;
