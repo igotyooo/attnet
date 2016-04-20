@@ -33,7 +33,6 @@ classdef Anet < handle
             this.settingDet0.numTopDirection          = 1;          % Ignored if 'STATIC'.
             this.settingDet0.onlyTargetAndBackground  = false;      % Ignored if 'DYNAMIC'.
             this.settingDet0.directionVectorSize      = 30;
-            this.settingMrg0.weightDirection 	      = 0.5;
             this.settingMrg0.mergingOverlap           = 0.8;
             this.settingMrg0.mergingType              = 'OV';
             this.settingMrg0.mergingMethod            = 'WAVG';
@@ -47,7 +46,6 @@ classdef Anet < handle
             this.settingDet1.numTopDirection          = 1;          % Ignored if 'STATIC'.
             this.settingDet1.onlyTargetAndBackground  = false;      % Ignored if 'DYNAMIC'.
             this.settingDet1.directionVectorSize      = 30;
-            this.settingMrg1.weightDirection          = 0.5;
             this.settingMrg1.mergingOverlap           = 0.6;
             this.settingMrg1.mergingType              = 'OV';
             this.settingMrg1.mergingMethod            = 'WAVG';
