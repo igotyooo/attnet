@@ -457,8 +457,8 @@ classdef AnetTrain < handle
             path = fullfile( this.getPatchStatDir, fname );
         end
         function name = getNetName( this )
-            name = sprintf( 'ANET_%s_%s', ...
-                upper( this.prenet.name ), this.setting.changes );
+            name = sprintf( 'ANET_%s_%s_OF_%s', ...
+                upper( this.prenet.name ), this.setting.changes, this.anetdb.name );
             name( strfind( name, '-' ) ) = '';
 	    name( strfind( name, ';' ) ) = '_';
 	    name( strfind( name, '[' ) ) = '_';
