@@ -153,6 +153,12 @@ for epoch=start+1:opts.numEpochs
 
   % save
   if evaluateMode, sets = {'val'} ; else sets = {'train', 'val'} ; end
+  if isempty(stats.val), 
+      sets = sets(1); 
+      info.val.speed(epoch) = NaN;
+      info.val.objective(epoch) = NaN;
+      info.val.error(:,epoch) = NaN;
+  end; % DGYOO edit (0-, 6+): Exception for no validation.
   for f = sets
     f = char(f) ;
     n = numel(eval(f)) ;
@@ -170,7 +176,7 @@ for epoch=start+1:opts.numEpochs
   if opts.plotStatistics
     switchfigure(1) ; clf ;
     subplot(1,1+hasError,1) ;
-    if ~evaluateMode
+        if ~evaluateMode
       semilogy(1:epoch, info.train.objective, '.-', 'linewidth', 2) ;
       hold on ;
     end
@@ -197,6 +203,7 @@ for epoch=start+1:opts.numEpochs
     drawnow ;
     print(1, modelFigPath, '-dpdf') ;
   end
+  imdb.makeSeq(); % DGYOO edit (0-, 1+): Make seq for each epoch.
 end
 
 % -------------------------------------------------------------------------

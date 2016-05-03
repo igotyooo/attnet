@@ -49,6 +49,7 @@ classdef AnetTrain < handle
                 [ v, d ] = eig( rgbCovariance );
                 anet.meta.augmentation.rgbVariance = 0.1 * sqrt( d ) * v';
                 % Learn.
+                this.seq.makeSeq = @this.makeSeq;
                 opts.train.gpus = this.gpus;
                 opts.train.prefetch = true;
                 opts.train.errorFunction = @this.errorFun;
@@ -218,7 +219,7 @@ classdef AnetTrain < handle
             if numel( rgbMean ) == 3,
                 rgbMean = reshape( rgbMean, 1, 1, 3 );
             end;
-            if isempty( this.seq ) || all( this.seq.sid2used ), this.makeSeq; end;
+            if isempty( this.seq ), this.makeSeq; end;
             iid2impath = this.seq.iid2impath;
             sid2iid = this.seq.sid2iid( batch );
             sid2tlbr = this.seq.sid2tlbr( :, batch );
@@ -257,7 +258,6 @@ classdef AnetTrain < handle
             end;
             ims = sid2im;
             labels = reshape( sid2gt, [ 1, 1, size( sid2gt, 1 ), numSmpl ] );
-            this.seq.sid2used( batch ) = true;
         end
         function makeSeq( this )
             fprintf( '%s: Make train seq.\n', upper( mfilename ) );
@@ -269,7 +269,6 @@ classdef AnetTrain < handle
             this.seq.sid2tlbr = cat( 2, trseq.sid2tlbr, valseq.sid2tlbr );
             this.seq.sid2flip = cat( 1, trseq.sid2flip, valseq.sid2flip );
             this.seq.sid2gt = cat( 2, trseq.sid2gt, valseq.sid2gt );
-            this.seq.sid2used = cat( 1, false( size( trseq.sid2iid ) ), false( size( valseq.sid2iid ) ) );
             this.seq.images.set = cat( 1, ones( size( trseq.sid2iid ) ), 2 * ones( size( valseq.sid2iid ) ) );
         end
         function subseq = getSeqPerEpch( this, setid )
