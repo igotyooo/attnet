@@ -11,6 +11,8 @@ path.db.voc2007.root = fullfile( path.lib.vocDevKit, 'VOC2007' );
 path.db.voc2012.name = 'VOC2012';
 path.db.voc2012.funh = @DB_VOC2012;
 path.db.voc2012.root = fullfile( path.lib.vocDevKit, 'VOC2012' );
+path.db.voc2007and2012.name = 'VOC2007AND2012';
+path.db.voc2007and2012.funh = @DB_VOC2007AND2012;
 % Set pre-trained CNN path only.
 path.net.vgg_m.name = 'VGG-M';
 path.net.vgg_m.path = '/home/dgyoo/workspace/nets/mat/imagenet-vgg-m.mat';
