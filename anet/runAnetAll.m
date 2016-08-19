@@ -1,7 +1,7 @@
 function runAnetAll( numDiv, divId, gpuId )
 clc; clearvars -except numDiv divId gpuId; fclose all; close all;
 addpath( genpath( '..' ) ); init;
-setting.db                                      = path.db.voc2007;
+setting.db                                      = path.db.voc2007and2012; path.db.voc2012; path.db.voc2007;
 setting.prenet                                  = path.net.vgg16;
 setting.anetdb.patchSide                        = 224;
 setting.anetdb.stride                           = 32;
