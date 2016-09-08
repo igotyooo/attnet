@@ -53,7 +53,7 @@ classdef AnetTrain < handle
                 opts.train.gpus = this.gpus;
                 opts.train.prefetch = true;
                 opts.train.errorFunction = @this.errorFun;
-                opts.train.errorLabels = { 'err-cls', 'err-dir' };
+                opts.train.errorLabels = { 'err' };
                 [ anet, info ] = my_cnn_train( ...
                     anet, this.seq, ...
                     @( x, y )this.getBatch( anet.meta, x, y ), ...
@@ -120,11 +120,8 @@ classdef AnetTrain < handle
             suppLearnRate = this.setting.suppLearnRate;
             useDropout = this.setting.useDropout;
             name = upper( this.prenet.name );
-            numDimPerDirLyr = 4;
-            numClass = numel( this.db.cid2name );
-            numDimDir = numClass * ( numDimPerDirLyr * 2 );
-            numDimCls = numClass + 1;
-            numOutDim = numDimDir + numDimCls;
+            numDimPerDirLyr = 5;
+            numOutDim = numDimPerDirLyr * 2;
             % Initialize anet and copy params.
             fprintf( '%s: Form %s-based anet.\n', ...
                 upper( mfilename ), name );
@@ -158,11 +155,9 @@ classdef AnetTrain < handle
             end;
             anet.layers{ lastconv }.weights{ 1 } = lastwei{ 1 }( :, :, :, 1 : numOutDim );
             anet.layers{ lastconv }.weights{ 2 } = lastwei{ 2 }( 1 : numOutDim );
-	    anet.layers{ lastconv }.learningRate = anet.layers{ lastconv }.learningRate * 3; % Compansation to 1/3 in loss.
+            anet.layers{ lastconv }.learningRate = anet.layers{ lastconv }.learningRate * 2; % Compansation to 1/2 in loss.
             % Initialize the output layer.
             anet.layers{ end }.type = 'custom';
-            anet.layers{ end }.dimDir = 1 : numDimDir;
-            anet.layers{ end }.dimCls = numDimDir + ( 1 : numDimCls );
             anet.layers{ end }.forward = @AnetTrain.forward;
             anet.layers{ end }.backward = @AnetTrain.backward;
             % Set train options.
@@ -179,22 +174,16 @@ classdef AnetTrain < handle
             tmp.meta.normalization = anet.meta.normalization;
             [ anet.meta.map.patchSide, anet.meta.map.stride ] = getNetProperties( tmp );
             anet.classes.name = {  };
-            for cid = 1 : numClass,
-                cname = this.db.cid2name{ cid };
-                anet.classes.name{ end + 1, 1 } = sprintf( 'cls: %s, top-left: go to down', cname );
-                anet.classes.name{ end + 1, 1 } = sprintf( 'cls: %s, top-left: go to right-down', cname );
-                anet.classes.name{ end + 1, 1 } = sprintf( 'cls: %s, top-left: go to right', cname );
-                anet.classes.name{ end + 1, 1 } = sprintf( 'cls: %s, top-left: stop', cname );
-                anet.classes.name{ end + 1, 1 } = sprintf( 'cls: %s, bottom-right: go to up', cname );
-                anet.classes.name{ end + 1, 1 } = sprintf( 'cls: %s, bottom-right: go to up-left', cname );
-                anet.classes.name{ end + 1, 1 } = sprintf( 'cls: %s, bottom-right: go to left', cname );
-                anet.classes.name{ end + 1, 1 } = sprintf( 'cls: %s, bottom-right: stop', cname );
-            end;
-            for cid = 1 : numClass,
-                cname = this.db.cid2name{ cid };
-                anet.classes.name{ end + 1, 1 } = cname;
-            end;
-            anet.classes.name{ end + 1, 1 } = 'background';
+            anet.classes.name{ end + 1, 1 } = sprintf( 'top-left: go to down' );
+            anet.classes.name{ end + 1, 1 } = sprintf( 'top-left: go to right-down' );
+            anet.classes.name{ end + 1, 1 } = sprintf( 'top-left: go to right' );
+            anet.classes.name{ end + 1, 1 } = sprintf( 'top-left: stop' );
+            anet.classes.name{ end + 1, 1 } = sprintf( 'top-left: false' );
+            anet.classes.name{ end + 1, 1 } = sprintf( 'bottom-right: go to up' );
+            anet.classes.name{ end + 1, 1 } = sprintf( 'bottom-right: go to up-left' );
+            anet.classes.name{ end + 1, 1 } = sprintf( 'bottom-right: go to left' );
+            anet.classes.name{ end + 1, 1 } = sprintf( 'bottom-right: stop' );
+            anet.classes.name{ end + 1, 1 } = sprintf( 'bottom-right: false' );
             anet.classes.description = anet.classes.name;
             anet.name = this.getNetName;
             % Remove dropout if unnecessary.
@@ -402,38 +391,25 @@ classdef AnetTrain < handle
             output = gather( res( end - 1 ).x );
             gts = gather( gts );
             % Compute direction error.
-            signBgd = this.db.getNumClass + 1;
-            numDimPerDirLyr = 4;
-            numLyr = size( gts, 3 );
-            numDirLyr = numLyr - 1;
-            dimClsLyr = numDirLyr * numDimPerDirLyr + ( 1 : signBgd );
+            tcid = 15;
+            numDimPerLyr = 5;
+            signBgd = 5;
+            numDirLyr = 2;
             errDir = 0;
             for lid = 1 : numDirLyr,
-                sid2istar = logical( gts( :, :, lid, : ) );
-                sid2istar = sid2istar( : );
-                if ~any( sid2istar ),
-                    e = 0;
-                    errDir = errDir + e;
-                else
-                    dims = ( lid - 1 ) * numDimPerDirLyr + 1;
-                    dime = lid * numDimPerDirLyr;
-                    p = output( :, :, dims : dime, sid2istar );
-                    [ ~, p ] = sort( p, 3, 'descend' );
-                    e = ~bsxfun( @eq, p, gts( :, :, lid, sid2istar ) );
-                    e = e( :, :, 1, : );
-                    e = sum( e( : ) );
-                    errDir = errDir + e;
-                end
+                gt = gts( :, :, ( tcid - 1 ) * numDirLyr + lid, : );
+                gt( gt == 0 ) = signBgd;
+                dims = ( lid - 1 ) * numDimPerLyr + 1;
+                dime = lid * numDimPerLyr;
+                p = output( :, :, dims : dime, : );
+                [ ~, p ] = sort( p, 3, 'descend' );
+                e = ~bsxfun( @eq, p, gt );
+                e = e( :, :, 1, : );
+                e = sum( e( : ) );
+                errDir = errDir + e;
             end;
-            errDir = errDir * ( size( gts, 4 ) / sum( gts( :, :, end, : ) ~= signBgd ) ); % Normalization of the # of samples.
             errDir = errDir / 2; % Normalization in Eq (2).
-            % Compute classification error.
-            p = output( :, :, dimClsLyr, : );
-            [ ~, p ] = sort( p, 3, 'descend' );
-            e = ~bsxfun( @eq, p, gts( :, :, end, : ) );
-            e = e( :, :, 1, : );
-            errCls = sum( e( : ) );
-            err = [ errCls; errDir; ];
+            err = errDir;
         end
         % Functions for file IO.
         function name = getPatchStatName( this )
@@ -475,61 +451,42 @@ classdef AnetTrain < handle
     end
     methods( Static )
         function res2 = forward( ly, res1, res2 )
-            % Loss is the following.
-            % Loss = ( 2 / 3 * Ldir ) + ( 1 / 3 * Lcls ), s.t.          ---(1)
-            % Ldir = ( ( Ytl ~= 0 ) * Ltl + ( Ybr ~= 0 ) * Lbr ) / 2.   ---(2)
             X = res1.x;
-            gt = ly.class;
-            signBgd = numel( ly.dimCls );
-            numDimPerDirLyr = 4;
-            numLyr = size( gt, 3 );
-            numDirLyr = numLyr - 1;
+            gts = ly.class;
+            tcid = 15;
+            numDimPerLyr = 5;
+            signBgd = 5;
+            numDirLyr = 2;
             ydir = 0;
             for lid = 1 : numDirLyr,
-                sid2istar = logical( gt( :, :, lid, : ) );
-                sid2istar = sid2istar( : );
-                if ~any( sid2istar ),
-                    ydir_ = 0;
-                    ydir = ydir + ydir_;
-                else
-                    dims = ( lid - 1 ) * numDimPerDirLyr + 1;
-                    dime = lid * numDimPerDirLyr;
-                    ydir_ = vl_nnsoftmaxloss...
-                        ( X( :, :, dims : dime, sid2istar ), gt( :, :, lid, sid2istar ) );
-                    ydir = ydir + ydir_;
-                end
+                gt = gts( :, :, ( tcid - 1 ) * numDirLyr + lid, : );
+                gt( gt == 0 ) = signBgd;
+                dims = ( lid - 1 ) * numDimPerLyr + 1;
+                dime = lid * numDimPerLyr;
+                ydir_ = vl_nnsoftmaxloss( X( :, :, dims : dime, : ), gt );
+                ydir = ydir + ydir_;
             end;
-            ycls = vl_nnsoftmaxloss...
-                ( X( :, :, ly.dimCls, : ), gt( :, :, end, : ) );
-            ydir = ydir * ( size( gt, 4 ) / sum( gt( :, :, end, : ) ~= signBgd ) ); % Normalization of the # of samples.
-            ydir = ydir / 2; % Normalization in Eq (2).
-            ydir = ydir * 2 / 3; % Balancing in Eq (1).
-            ycls = ycls / 3; % Balancing in Eq (1).
-            res2.x = [ ycls; ydir; ];
+            ydir = ydir / 2;
+            res2.x = ydir;
         end
         function res1 = backward( ly, res1, res2 )
             X = res1.x;
-            gt = ly.class;
+            gts = ly.class;
             Y = gpuArray( zeros( size( X ), 'single' ) );
-            numDimPerDirLyr = 4;
-            numLyr = size( gt, 3 );
-            numDirLyr = numLyr - 1;
-            dzdyDir = res2.dzdx * 2 / 3; % Balancing in Eq (1).
-            dzdyDir = dzdyDir / 2; % Normalization in Eq (2).
+            tcid = 15;
+            numDimPerLyr = 5;
+            signBgd = 5;
+            numDirLyr = 2;
+            dzdyDir = res2.dzdx / 2;
             for lid = 1 : numDirLyr,
-                sid2istar = logical( gt( :, :, lid, : ) );
-                sid2istar = sid2istar( : );
-                if ~any( sid2istar ),  continue; end;
-                dims = ( lid - 1 ) * numDimPerDirLyr + 1;
-                dime = lid * numDimPerDirLyr;
+                gt = gts( :, :, ( tcid - 1 ) * numDirLyr + lid, : );
+                gt( gt == 0 ) = signBgd;
+                dims = ( lid - 1 ) * numDimPerLyr + 1;
+                dime = lid * numDimPerLyr;
                 ydir = vl_nnsoftmaxloss...
-                    ( X( :, :, dims : dime, sid2istar ), gt( :, :, lid, sid2istar ), dzdyDir );
-                Y( :, :, dims : dime, sid2istar ) = ydir;
+                    ( X( :, :, dims : dime, : ), gt, dzdyDir );
+                Y( :, :, dims : dime, : ) = ydir;
             end;
-            dzdyCls = res2.dzdx / 3; % Balancing in Eq (1).
-            ycls = vl_nnsoftmaxloss...
-                ( X( :, :, ly.dimCls, : ), gt( :, :, end, : ), dzdyCls );
-            Y( :, :, ly.dimCls, : ) = ycls;
             res1.dzdx = Y;
         end
     end

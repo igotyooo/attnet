@@ -3,7 +3,7 @@ global path;
 path.lib.matConvNet = '/home/dgyoo/workspace/lib/matconvnet-1.0-beta18_cudnn4/';
 path.lib.vocDevKit = '/home/dgyoo/workspace/datain/PASCALVOC/VOCdevkit/';
 % Set dst dir.
-path.dstDir = '/home/dgyoo/workspace/dataout/attnet';
+path.dstDir = '/home/dgyoo/workspace/dataout/attnet_single';
 % Set image DB path only.
 path.db.voc2007.name = 'VOC2007';
 path.db.voc2007.funh = @DB_VOC2007;

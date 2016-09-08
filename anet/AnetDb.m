@@ -52,7 +52,9 @@ classdef AnetDb < handle
                 numScaling = this.setting.numScaling;
                 posIntOverRegnMoreThan = 1 / ( posGotoMargin ^ 2 );
                 setid = 1;
+                tcid = 15;
                 oid2tlbr = this.db.oid2bbox( :, this.db.iid2setid( this.db.oid2iid ) == setid );
+                oid2cid = this.db.oid2cid( this.db.iid2setid( this.db.oid2iid ) == setid );
                 if maxSide,
                     oid2iid = this.db.oid2iid( this.db.iid2setid( this.db.oid2iid ) == setid );
                     oid2imsize = this.db.iid2size( :, oid2iid );
@@ -64,7 +66,7 @@ classdef AnetDb < handle
                 end;
                 referenceSide = patchSide * sqrt( posIntOverRegnMoreThan );
                 [ scalesRow, scalesCol ] = determineImageScaling...
-                    ( oid2tlbr, numScaling, referenceSide, true );
+                    ( oid2tlbr( :, oid2cid == tcid ), numScaling, referenceSide, true );
                 data.scales = [ scalesRow, scalesCol ]';
                 fprintf( '%s: Done.\n', upper( mfilename ) );
                 save( fpath, 'data' );
