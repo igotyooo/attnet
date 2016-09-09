@@ -164,6 +164,7 @@ classdef AnetTrain < handle
             anet.meta.trainOpts.batchSize = this.setting.batchSize;
             % Set meta.
             anet.meta = rmfield( anet.meta, 'augmentation' );
+            anet.meta.augmentation.rgbVariance = [  ];
             anet.meta.normalization = rmfield( anet.meta.normalization, 'cropSize' );
             fprintf( '%s: Compute patch side and stride between in/out of %s.\n', ...
                 upper( mfilename ), name );
