@@ -63,8 +63,6 @@ classdef AnetTrain < handle
                 % Deploy.
                 fprintf( '%s: Save anet.\n', upper( mfilename ) );
                 anet.meta.directions = this.anetdb.directions;
-                anet.meta.directions.dimDir = anet.layers{ end }.dimDir;
-                anet.meta.directions.dimCls = anet.layers{ end }.dimCls;
                 anet.meta.name = this.getNetName;
                 anet = cnn_imagenet_deploy( anet );
                 anet.layers = anet.layers( 1 : end - 2 );
@@ -166,6 +164,7 @@ classdef AnetTrain < handle
             anet.meta.trainOpts.batchSize = this.setting.batchSize;
             % Set meta.
             anet.meta = rmfield( anet.meta, 'augmentation' );
+            anet.meta.normalization = rmfield( anet.meta.normalization, 'cropSize' );
             fprintf( '%s: Compute patch side and stride between in/out of %s.\n', ...
                 upper( mfilename ), name );
             tmp.layers = anet.layers( 1 : lastconv );
