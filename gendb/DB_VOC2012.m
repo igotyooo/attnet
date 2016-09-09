@@ -24,7 +24,7 @@ function [  cid2name, ...
     iid2impath = cat( 1, triid2impath, teiid2impath );
     iid2annopath = fullfile( annodir, strcat( trlist{ 1 }, '.xml' ) );
     numTrIm = numel( triid2impath );
-    iid2setid = 2 * ones( size( iid2impath ) );
+    iid2setid = 3 * ones( size( iid2impath ) );
     iid2setid( 1 : numTrIm ) = 1;
     iid2size = cell( numIm, 1 );
     oid2name = cell( numTrIm, 1 );
@@ -66,4 +66,37 @@ function [  cid2name, ...
     oid2bbox = cat( 2, oid2bbox{ : } );
     [  cid2name, ~, oid2cid ] = unique( oid2name );
     oid2cont = cell( size( oid2cid ) );
+    
+    % Add VOC 2007 test to validate 2012.
+    [  ~, ...
+        iid2impath07, ...
+        iid2size07, ...
+        iid2setid07, ...
+        oid2cid07, ...
+        oid2diff07, ...
+        oid2iid07, ...
+        oid2bbox07, ...
+        oid2cont07 ] = DB_VOC2007;
+    iid2val07 = iid2setid07 == 2;
+    iid2niid07 = zeros( size( iid2impath07 ) );
+    iid2niid07( iid2val07 ) = 1 : sum( iid2val07 );
+    oid2val07 = iid2val07( oid2iid07 );
+    iid2impath07 = iid2impath07( iid2val07 );
+    iid2size07 = iid2size07( :, iid2val07 );
+    iid2setid07 = iid2setid07( iid2val07 );
+    oid2cid07 = oid2cid07( oid2val07 );
+    oid2diff07 = oid2diff07( oid2val07 );
+    oid2iid07 = iid2niid07( oid2iid07( oid2val07 ) );
+    oid2iid07 = oid2iid07 - min( oid2iid07 ) + numel( iid2impath ) + 1;
+    oid2bbox07 = oid2bbox07( :, oid2val07 );
+    oid2cont07 = oid2cont07( oid2val07 );
+    
+    iid2impath = cat( 1, iid2impath, iid2impath07 );
+    iid2size = cat( 2, iid2size, iid2size07 );
+    iid2setid = cat( 1, iid2setid, iid2setid07 );
+    oid2cid = cat( 1, oid2cid, oid2cid07 );
+    oid2diff = cat( 1, oid2diff, oid2diff07 );
+    oid2iid = cat( 1, oid2iid, oid2iid07 );
+    oid2bbox = cat( 2, oid2bbox, oid2bbox07 );
+    oid2cont = cat( 1, oid2cont, oid2cont07 );
 end
