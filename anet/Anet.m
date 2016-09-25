@@ -175,7 +175,7 @@ classdef Anet < handle
             outsBr = rid2out( dimBr, : );
             scoresTl = outsTl( signStop, : );
             scoresBr = outsBr( signStop, : );
-            rid2score = ( scoresTl + scoresBr )' / 2;
+            rid2score = ( 2 * ( scoresTl + scoresBr ) - sum( outsTl + outsBr, 1 ) )' / 2;
         end;
         function demoDet( this, iid )
             flip = this.settingProp.flip;
