@@ -18,7 +18,7 @@ setting.train.numSamplePerObj                   = [ 1; 14; 1; 16; ];
 setting.train.shuffleSequance                   = false;
 setting.train.useDropout                        = true;
 setting.train.suppLearnRate                     = 1;
-setting.train.learnRate                         = [ 0.01 * ones( 1, 7 ), 0.001 * ones( 1, 2 ), 0.0001 * ones( 1, 1 ) ] / 10;
+setting.train.learnRate                         = [ 0.01 * ones( 1, 8 ), 0.001 * ones( 1, 2 ), 0.0001 * ones( 1, 1 ) ] / 10;
 setting.train.batchSize                         = numel( setting.train.gpus ) * 24;
 setting.anetProp.gpu                            = 1;
 setting.anetProp.flip                           = false;
@@ -40,7 +40,7 @@ setting.anetDet1.batchSize                      = setting.train.batchSize * 2;
 setting.anetDet1.rescaleBox                     = 3;
 setting.anetDet1.rescaleBoxStd                  = 0.5;
 setting.anetDet1.directionVectorSize            = 15;
-setting.anetMrg1.mergingOverlap                 = 0.45;
+setting.anetMrg1.mergingOverlap                 = 0.5;
 setting.anetMrg1.mergingType                    = 'NMSIOU';
 setting.anetMrg1.mergingMethod                  = 'WAVG';
 setting.anetMrg1.minimumNumSupportBox           = 0;
@@ -64,14 +64,14 @@ det.init;
 
 %% EVALUATION.
 clearvars -except db adb anet res det setting path;
+cid = 15;
 res1 = det.getSubDbDet1( 1, 1 );
+res1.did2cid = cid * ones( size( res1.did2score ) );
 res1 = evalVoc( res1, db, 2 );
-for cid = 1 : numel( db.cid2name ),
-    plot( res1.cid2rec{ cid }, res1.cid2prec{ cid }, '-' ); grid;
-    xlabel( 'recall' ); ylabel( 'precision' );
-    title( sprintf( '%s, AP = %.2f', db.cid2name{ cid }, res1.cid2ap( cid ) * 100 ) );
-    waitforbuttonpress;
-end;
+plot( res1.cid2rec{ cid }, res1.cid2prec{ cid }, '-' ); grid;
+xlabel( 'recall' ); ylabel( 'precision' );
+title( sprintf( '%s, AP = %.2f', db.cid2name{ cid }, res1.cid2ap( cid ) * 100 ) );
+
 
 %% DEMO.
 close all;
@@ -82,7 +82,7 @@ det.demoDet( iid );
 %% ANALYSIS.
 close all;
 clearvars -except db adb anet res det setting path res1;
-cname = 'motorbike';
+cname = 'person';
 cid = find( cellfun( @( s )strcmp( s, cname ), db.cid2name ) );
 fpranks = find( res1.cid2rank2fp{ cid } );
 for f = 1 : numel( fpranks ),
