@@ -53,7 +53,7 @@ classdef AnetTrain < handle
                 opts.train.gpus = this.gpus;
                 opts.train.prefetch = true;
                 opts.train.errorFunction = @this.errorFun;
-                opts.train.errorLabels = { 'err-cls', 'err-dir' };
+                opts.train.errorLabels = { 'err_cls', 'err_dir' };
                 [ anet, info ] = my_cnn_train( ...
                     anet, this.seq, ...
                     @( x, y )this.getBatch( anet.meta, x, y ), ...
@@ -131,7 +131,7 @@ classdef AnetTrain < handle
             ptnet = load( this.prenet.path );
             anet = cnn_imagenet_init( 'model', lower( name ) );
             for al = 1 : numel( anet.layers ),
-                if isfield( anet.layers{ al }, 'weights' ),
+                if isfield( anet.layers{ al }, 'weights' ) && ~isempty( anet.layers{ al }.weights ),
                     altype = anet.layers{ al }.type;
                     alname = anet.layers{ al }.name;
                     for pl = 1 : numel( ptnet.layers ),
@@ -170,9 +170,9 @@ classdef AnetTrain < handle
             anet.meta.trainOpts.numEpochs = numel( this.setting.learnRate );
             anet.meta.trainOpts.batchSize = this.setting.batchSize;
             % Set meta.
-            anet.meta.augmentation = rmfield( anet.meta.augmentation, 'transformation' );
-            anet.meta.normalization = rmfield( anet.meta.normalization, 'border' );
-            anet.meta.normalization = rmfield( anet.meta.normalization, 'keepAspect' );
+            anet.meta = rmfield( anet.meta, 'augmentation' );
+            anet.meta.augmentation.rgbVariance = [  ];
+            anet.meta.normalization = rmfield( anet.meta.normalization, 'cropSize' );
             fprintf( '%s: Compute patch side and stride between in/out of %s.\n', ...
                 upper( mfilename ), name );
             tmp.layers = anet.layers( 1 : lastconv );
@@ -206,7 +206,7 @@ classdef AnetTrain < handle
             imageSize = meta.normalization.imageSize;
             rgbMean = meta.normalization.averageImage;
             rgbVar = meta.augmentation.rgbVariance;
-            interpolation = meta.normalization.interpolation;
+            interpolation = 'bilinear';
             inside = imageSize( 1 );
             if isempty( batch ),
                 ims = zeros( inside, inside, 3, 0, 'single' );
