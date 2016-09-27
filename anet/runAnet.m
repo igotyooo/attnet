@@ -1,7 +1,7 @@
 %% SET PARAMETERS ONLY.
 clc; close all; fclose all; clear all;
 addpath( genpath( '..' ) ); init;
-setting.db                                      = path.db.voc2007and2012; path.db.voc2012; path.db.voc2007;
+setting.db                                      = path.db.voc2007;
 setting.prenet                                  = path.net.vgg16;
 setting.anetdb.patchSide                        = 224;
 setting.anetdb.stride                           = 32;
@@ -18,7 +18,7 @@ setting.train.numSamplePerObj                   = [ 1; 14; 1; 16; ];
 setting.train.shuffleSequance                   = false;
 setting.train.useDropout                        = true;
 setting.train.suppLearnRate                     = 1;
-setting.train.learnRate                         = [ 0.01 * ones( 1, 7 ), 0.001 * ones( 1, 2 ), 0.0001 * ones( 1, 1 ) ] / 10;
+setting.train.learnRate                         = [ 0.01 * ones( 1, 10 ), 0.001 * ones( 1, 2 ), 0.0001 * ones( 1, 1 ) ] / 10;
 setting.train.batchSize                         = numel( setting.train.gpus ) * 24;
 setting.anetProp.gpu                            = 1;
 setting.anetProp.flip                           = false;
