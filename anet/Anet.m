@@ -314,7 +314,8 @@ classdef Anet < handle
             end;
         end
         function subDbDet0( this, numDiv, divId )
-            iids = this.db.getTeiids;
+            iids = find( this.db.iid2setid == 3 );
+            if isempty( iids ), iids = find( this.db.iid2setid == 2 ); end;
             iids = iids( divId : numDiv : numel( iids ) );
             fprintf( '%s: Check if detections exist.\n', upper( mfilename ) );
             paths = arrayfun( @( iid )this.getDet0Path( iid ), iids, 'UniformOutput', false );
@@ -333,7 +334,8 @@ classdef Anet < handle
             end;
         end
         function subDbDet1( this, numDiv, divId )
-            iids = this.db.getTeiids;
+            iids = find( this.db.iid2setid == 3 );
+            if isempty( iids ), iids = find( this.db.iid2setid == 2 ); end;
             iids = iids( divId : numDiv : numel( iids ) );
             fprintf( '%s: Check if detections exist.\n', upper( mfilename ) );
             paths = arrayfun( @( iid )this.getDet1Path( iid ), iids, 'UniformOutput', false );
@@ -351,8 +353,9 @@ classdef Anet < handle
                 disploop( numIm, iidx, sprintf( 'Det1 on IID%d in %dth(/%d) div.', iid, divId, numDiv ), cummt );
             end;
         end
-        function res = getSubDbDet0( this,  numDiv, divId )
-            iids = this.db.getTeiids;
+        function res = getSubDbDet0( this, numDiv, divId )
+            iids = find( this.db.iid2setid == 3 );
+            if isempty( iids ), iids = find( this.db.iid2setid == 2 ); end;
             idx2iid = iids( divId : numDiv : numel( iids ) );
             numIm = numel( idx2iid );
             rid2tlbr = cell( numIm, 1 );
@@ -377,8 +380,9 @@ classdef Anet < handle
             res.did2cid = rid2cid;
             res.did2iid = rid2iid;
         end;
-        function res = getSubDbDet1( this,  numDiv, divId )
-            iids = this.db.getTeiids;
+        function res = getSubDbDet1( this, numDiv, divId )
+            iids = find( this.db.iid2setid == 3 );
+            if isempty( iids ), iids = find( this.db.iid2setid == 2 ); end;
             idx2iid = iids( divId : numDiv : numel( iids ) );
             numIm = numel( idx2iid );
             rid2tlbr = cell( numIm, 1 );
