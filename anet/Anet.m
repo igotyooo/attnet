@@ -625,7 +625,7 @@ classdef Anet < handle
             numTopDir = detParams.numTopDirection;
             dvecSize = detParams.directionVectorSize;
             testBatchSize = detParams.batchSize;
-            numMaxFeed = 50;
+            numMaxFeed = 200;
             interpolation = 'bilinear';
             inputCh = size( im, 3 );
             numCls = numel( this.db.cid2name );
