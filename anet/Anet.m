@@ -504,7 +504,7 @@ classdef Anet < handle
             inputSide = this.anet.meta.inputSize( 1 );
             dvecSize = detParams.directionVectorSize;
             testBatchSize = detParams.batchSize;
-            numMaxFeed = 50;
+            numMaxFeed = 200; 
             interpolation = 'bilinear';
             inputCh = size( im, 3 );
             numDimPerLyr = 5;
