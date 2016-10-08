@@ -582,7 +582,7 @@ classdef Anet < handle
             maximumImageSize = this.settingProp.maximumImageSize;
             imageDilate = round( patchSide * regionDilate );
             rgbMean = reshape( this.anet.meta.normalization.averageImage, [ 1, 1, 3 ] );
-            interpolation = this.anet.meta.normalization.interpolation;
+            interpolation = 'bilinear';
             numSize = size( targetImageSizes, 2 );
             rid2out = cell( numSize, 1 );
             for sid = 1 : numSize,
