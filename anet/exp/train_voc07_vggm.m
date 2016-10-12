@@ -61,3 +61,4 @@ adb = adb.makeAnetDb;
 anet = AnetTrain( db, adb, ...
     setting.prenet, setting.train );
 anet = anet.train;
+exit;

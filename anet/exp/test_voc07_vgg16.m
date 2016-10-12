@@ -70,3 +70,4 @@ det = Anet( db, anet, ...
 det.init;
 det.subDbDet0( numDiv, divId );
 det.subDbDet1( numDiv, divId );
+exit;
