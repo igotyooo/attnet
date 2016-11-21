@@ -2,6 +2,7 @@
 datain/
 dataout/
 *.out
+*.tar
 
 # Backup files.
 *.m~
