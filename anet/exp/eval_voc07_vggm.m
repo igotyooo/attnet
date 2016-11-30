@@ -58,7 +58,24 @@ det = Anet( db, anet, ...
     setting.anetDet1, ...
     setting.anetMrg1 );
 det.init;
-cid = 15;
 res1 = det.getSubDbDet1( 1, 1 );
-res1.did2cid = cid * ones( size( res1.did2score ) );
-res1 = evalVoc( res1, db, 2 );
+res1.did2cid = 15 * ones( size( res1.did2score ) );
+evalVoc( res1, db, 2 );
+resultPath = fullfile( 'results', setting.db.name, 'Main/comp3_det_test_%s.txt' );
+resultTarball = sprintf( '%s_DET1_%s_MO%.1f_MT%s_MM%s_MNSB%d.tar', ...
+    setting.db.name, ...
+    setting.prenet.name, ...
+    setting.anetMrg1.mergingOverlap, ...
+    setting.anetMrg1.mergingType, ...
+    setting.anetMrg1.mergingMethod, ...
+    setting.anetMrg1.minimumNumSupportBox );
+resultTarball( resultTarball( 1 : end - 4 ) == '.' ) = 'P';
+resultTarball( resultTarball( 1 : end - 4 ) == '-' ) = '';
+system( sprintf( 'mkdir -p %s', fileparts( resultPath ) ) );
+fprintf( 'Make result file.\n' );
+makeResultFiles( res1, db.cid2name, db.iid2impath, resultPath );
+fprintf( 'Done.\n' );
+fprintf( 'Compress.\n' );
+system( sprintf( 'tar cvf %s results', resultTarball ) );
+system( 'rm -r results' );
+fprintf( 'Done.\n' );
